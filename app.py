@@ -1,425 +1,539 @@
+"""
+app.py — Flask backend complet.
+Rute publice: index, API preturi, contribuire, upload, geolocatie.
+Rute admin: login, catalog, IP-uri, scraping.
+"""
+
 import os
-import sqlite3
+import io
 import hashlib
-from datetime import datetime, timedelta
-from flask import Flask, render_template, request, jsonify
-import openpyxl
-import pdfplumber
-from io import BytesIO
- 
+import logging
+from functools import wraps
+from datetime import datetime
+
+from flask import (
+    Flask, render_template, request, jsonify,
+    session, redirect, url_for, flash
+)
+import requests
+
+import db
+from parser import parse_item, deduct_vat
+
+# ─── OPTIONALE ────────────────────────────────────────────────────────────────
+try:
+    import openpyxl
+    HAS_EXCEL = True
+except ImportError:
+    HAS_EXCEL = False
+
+try:
+    import pdfplumber
+    HAS_PDF = True
+except ImportError:
+    HAS_PDF = False
+
+try:
+    from PIL import Image
+    import pytesseract
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
+
+# ─── APP SETUP ────────────────────────────────────────────────────────────────
+
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
- 
-DATABASE = os.path.join(os.path.dirname(__file__), 'landscaping.db')
- 
-# ─── DATABASE ────────────────────────────────────────────────────────────────
- 
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
+ADMIN_PASS = os.environ.get('ADMIN_PASS', 'landscaping2026')
+CRON_SECRET = os.environ.get('CRON_SECRET', 'cron-secret')
+
+# Judete Romania
+COUNTIES = [
+    "Alba","Arad","Arges","Bacau","Bihor","Bistrita-Nasaud","Botosani",
+    "Braila","Brasov","Buzau","Calarasi","Caras-Severin","Cluj","Constanta",
+    "Covasna","Dambovita","Dolj","Galati","Giurgiu","Gorj","Harghita",
+    "Hunedoara","Ialomita","Iasi","Ilfov","Maramures","Mehedinti","Mures",
+    "Neamt","Olt","Prahova","Salaj","Satu Mare","Sibiu","Suceava",
+    "Teleorman","Timis","Tulcea","Valcea","Vaslui","Vrancea","Bucuresti"
+]
+
+
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
- 
-def init_db():
-    conn = get_db()
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS items (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            name     TEXT NOT NULL,
-            category TEXT NOT NULL,
-            unit     TEXT DEFAULT 'buc'
-        );
-        CREATE TABLE IF NOT EXISTS online_prices (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id   INTEGER NOT NULL,
-            price     REAL NOT NULL,
-            source    TEXT,
-            week_date TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (item_id) REFERENCES items(id)
-        );
-        CREATE TABLE IF NOT EXISTS voluntary_prices (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id   INTEGER NOT NULL,
-            price     REAL NOT NULL,
-            ip_hash   TEXT NOT NULL,
-            week_date TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (item_id) REFERENCES items(id)
-        );
- 
-        -- Înregistrează fiecare tentativă blocată (deviație prea mare)
-        CREATE TABLE IF NOT EXISTS ip_violations (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            ip_hash         TEXT NOT NULL,
-            item_id         INTEGER NOT NULL,
-            attempted_price REAL NOT NULL,
-            last_price      REAL NOT NULL,
-            deviation_pct   REAL NOT NULL,
-            week_date       TEXT NOT NULL,
-            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
- 
-        -- Banuri active (30 zile sau până piața confirmă prețul)
-        CREATE TABLE IF NOT EXISTS ip_bans (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            ip_hash         TEXT NOT NULL,
-            item_id         INTEGER NOT NULL,
-            attempted_price REAL NOT NULL,
-            banned_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            active          INTEGER DEFAULT 1
-        );
-    ''')
- 
-    if conn.execute('SELECT COUNT(*) FROM items').fetchone()[0] == 0:
-        seed_data = [
-            ('Molid Argintiu 200-250cm', 'Conifere', 'buc',   2500),
-            ('Pinus Sylvestris',         'Conifere', 'buc',   2500),
-            ('Lavandă 20-30cm',          'Arbuști',  'buc',     50),
-            ('Liliac de Vară 50-80cm',   'Arbuști',  'buc',     50),
-            ('Gutui Japonez',            'Arbuști',  'buc',     40),
-            ('Euonymus Japonicus',       'Arbuști',  'buc',     40),
-            ('Mesteacăn 500-600cm',      'Arbori',   'buc',   1650),
-            ('Stejar Roșu',              'Arbori',   'buc',   3250),
-            ('Magnolie Albă',            'Arbori',   'buc',   3000),
-            ('Paltin',                   'Arbori',   'buc',   2375),
-            ('Pământ Vegetal Fertil',    'Materiale','tonă',   490),
-            ('Gazon Rulou',              'Materiale','mp',    32.5),
-            ('Piatră Decorativă',        'Materiale','tonă',  1800),
-        ]
-        week = get_week_date()
-        for name, cat, unit, price in seed_data:
-            conn.execute('INSERT INTO items (name,category,unit) VALUES (?,?,?)', (name, cat, unit))
-            conn.commit()
-            item = conn.execute('SELECT id FROM items WHERE name=?', (name,)).fetchone()
-            conn.execute(
-                'INSERT INTO online_prices (item_id,price,source,week_date) VALUES (?,?,?,?)',
-                (item['id'], price, 'PLANTE 2025.pdf', week)
-            )
-        conn.commit()
-    conn.close()
- 
-# ─── HELPERS ─────────────────────────────────────────────────────────────────
- 
-def hash_ip(ip):
-    salt = os.environ.get('IP_SALT', 'landscaping-ro-2026')
-    return hashlib.sha256(f"{salt}{ip}".encode()).hexdigest()[:20]
- 
-def get_week_date():
-    return datetime.now().strftime('%G-W%V')
- 
-def is_rate_limited(ip_hash, item_id):
-    conn = get_db()
-    n = conn.execute(
-        'SELECT COUNT(*) FROM voluntary_prices WHERE ip_hash=? AND item_id=? AND week_date=?',
-        (ip_hash, item_id, get_week_date())
-    ).fetchone()[0]
-    conn.close()
-    return n > 0
- 
-def check_and_enforce_rules(ip_hash, item_id, new_price):
-    """
-    Sistem anti-manipulare în 3 straturi.
- 
-    Stratul 1 — Prima abatere:  toleranță ±10% față de ultimul preț propriu.
-    Stratul 2 — Abaterile 2+:  toleranță ±5%  față de ultimul preț propriu.
-    Stratul 3 — A 3-a abatere: ban 30 zile.
- 
-    Deblocare anticipată (după cele 30 zile):
-      - Media voluntară a produsului ≥ 20 prețuri
-      - Și media se află în intervalul ±10% față de prețul pe care IP-ul încerca să îl trimită.
- 
-    Returnează (permis: bool, mesaj_eroare: str | None)
-    """
-    conn = get_db()
- 
-    # ── 1. Verifică ban activ ──────────────────────────────────────────────
-    ban = conn.execute(
-        '''SELECT id, attempted_price, banned_at FROM ip_bans
-           WHERE ip_hash=? AND item_id=? AND active=1
-           ORDER BY banned_at DESC LIMIT 1''',
-        (ip_hash, item_id)
-    ).fetchone()
- 
-    if ban:
-        banned_at      = datetime.fromisoformat(ban['banned_at'])
-        days_elapsed   = (datetime.now() - banned_at).days
-        attempted_price = ban['attempted_price']
- 
-        if days_elapsed >= 30:
-            # Verifică dacă piața a confirmat prețul (min 20 prețuri, deviere ≤10%)
-            market = conn.execute(
-                'SELECT AVG(price), COUNT(*) FROM voluntary_prices WHERE item_id=?',
-                (item_id,)
-            ).fetchone()
-            market_avg   = market[0]
-            market_count = market[1]
- 
-            if (market_count >= 20
-                    and market_avg is not None
-                    and abs(market_avg - attempted_price) / attempted_price <= 0.10):
-                # Piața a ajuns din urmă — deblocare
-                conn.execute('UPDATE ip_bans SET active=0 WHERE id=?', (ban['id'],))
-                conn.commit()
-                # Continuă procesarea submisiei curente
-            else:
-                conn.close()
-                if market_count < 20:
-                    detail = f"piața are doar {market_count}/20 prețuri necesare pentru deblocare"
-                else:
-                    detail = (f"media pieței ({market_avg:.2f} RON) nu a confirmat "
-                              f"prețul tău ({attempted_price:.2f} RON)")
-                return False, (
-                    f"🔒 Blocat — {detail}. "
-                    f"Vei fi deblocat când piața (min. 20 contribuții) validează prețul tău."
-                )
-        else:
-            remaining = 30 - days_elapsed
-            conn.close()
-            return False, f"🔒 Blocat {remaining} zile rămase din cauza tentativelor repetate."
- 
-    # ── 2. Recuperează ultimul preț acceptat al acestui IP ─────────────────
-    last_row = conn.execute(
-        '''SELECT price FROM voluntary_prices
-           WHERE ip_hash=? AND item_id=?
-           ORDER BY created_at DESC LIMIT 1''',
-        (ip_hash, item_id)
-    ).fetchone()
- 
-    if last_row is None:
-        conn.close()
-        return True, None   # Prima submisie — orice preț e OK
- 
-    last_price = last_row[0]
-    deviation  = abs(new_price - last_price) / last_price
- 
-    # ── 3. Numără violările anterioare pentru acest IP+item ────────────────
-    violation_count = conn.execute(
-        'SELECT COUNT(*) FROM ip_violations WHERE ip_hash=? AND item_id=?',
-        (ip_hash, item_id)
-    ).fetchone()[0]
- 
-    # Prag dinamic: 10% la prima abatere, 5% la următoarele
-    threshold = 0.10 if violation_count == 0 else 0.05
- 
-    if deviation <= threshold:
-        conn.close()
-        return True, None   # În limita admisă
- 
-    # ── 4. Înregistrează violarea ──────────────────────────────────────────
-    conn.execute(
-        '''INSERT INTO ip_violations
-           (ip_hash, item_id, attempted_price, last_price, deviation_pct, week_date)
-           VALUES (?, ?, ?, ?, ?, ?)''',
-        (ip_hash, item_id, new_price, last_price, round(deviation * 100, 2), get_week_date())
-    )
-    conn.commit()
-    new_violation_count = violation_count + 1
- 
-    # ── 5. A 3-a violara → ban 30 zile ────────────────────────────────────
-    if new_violation_count >= 3:
-        conn.execute(
-            '''INSERT INTO ip_bans (ip_hash, item_id, attempted_price)
-               VALUES (?, ?, ?)''',
-            (ip_hash, item_id, new_price)
-        )
-        conn.commit()
-        conn.close()
-        return False, (
-            "🚫 Ai fost blocat 30 de zile din cauza tentativelor repetate de "
-            "manipulare a prețului. Vei fi deblocat anticipat dacă piața "
-            "(min. 20 contribuții) ajunge la prețul pe care l-ai propus."
-        )
- 
-    # ── 6. Avertisment cu tentative rămase ────────────────────────────────
-    low              = round(last_price * (1 - threshold), 2)
-    high             = round(last_price * (1 + threshold), 2)
-    attempts_left    = 3 - new_violation_count
-    threshold_label  = "10%" if violation_count == 0 else "5%"
-    conn.close()
-    return False, (
-        f"⚠️ Variație de {deviation*100:.1f}% față de ultimul tău preț "
-        f"({last_price:.2f} RON) depășește pragul de {threshold_label}. "
-        f"Interval acceptat: {low} – {high} RON. "
-        f"{'Atenție: ' + str(attempts_left) + ' tentative rămase înainte de blocare 30 zile.' if attempts_left <= 2 else ''}"
-    )
- 
+    return db
+
+
+# ─── INITIALIZARE ────────────────────────────────────────────────────────────
+
+@app.before_request
+def ensure_db():
+    pass  # init_db() apelat la startup
+
+
+# ─── UTILITARE ────────────────────────────────────────────────────────────────
+
 def get_client_ip():
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr) or '0.0.0.0'
-    return ip.split(',')[0].strip()
- 
-# ─── ROUTES ──────────────────────────────────────────────────────────────────
- 
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers['X-Forwarded-For'].split(',')[0].strip()
+    return request.remote_addr or '0.0.0.0'
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ─── RUTE PUBLICE ─────────────────────────────────────────────────────────────
+
 @app.route('/')
 def index():
-    conn = get_db()
-    items = conn.execute('SELECT * FROM items ORDER BY category, name').fetchall()
-    conn.close()
-    return render_template('index.html', items=items)
- 
- 
+    total = db.get_total_prices_count()
+    items = db.get_all_items()
+    # Grupeaza pe categorie
+    categories = {}
+    for item in items:
+        cat = item['category']
+        categories.setdefault(cat, []).append(item)
+    return render_template(
+        'index.html',
+        total_prices=total,
+        categories=categories,
+        counties=COUNTIES,
+    )
+
+
+# ─── API: GEOLOCATIE JUDET ────────────────────────────────────────────────────
+
+@app.route('/api/detect-county')
+def detect_county():
+    ip = get_client_ip()
+    # Nu trimitem IP-ul real la servicii externe — folosim un hash intern
+    try:
+        r = requests.get(
+            f'http://ip-api.com/json/{ip}?fields=regionName&lang=ro',
+            timeout=5
+        )
+        if r.status_code == 200:
+            data = r.json()
+            region = data.get('regionName', '')
+            # Potriveste cu lista noastra
+            for county in COUNTIES:
+                if county.lower() in region.lower() or region.lower() in county.lower():
+                    return jsonify({'county': county, 'detected': True})
+    except Exception:
+        pass
+    return jsonify({'county': None, 'detected': False})
+
+
+# ─── API: DATE GRAFIC ─────────────────────────────────────────────────────────
+
+@app.route('/api/chart-data')
+def chart_data():
+    level1_key = request.args.get('key', '')
+    county     = request.args.get('county', 'national')
+
+    if not level1_key:
+        return jsonify({'error': 'Lipseste cheia itemului'}), 400
+
+    voluntary_national = db.get_voluntary_prices_for_chart(level1_key, county=None)
+    voluntary_local    = db.get_voluntary_prices_for_chart(level1_key, county=county) if county != 'national' else []
+    online             = db.get_online_prices_for_chart(level1_key)
+    county_stats       = db.get_county_stats(level1_key)
+
+    return jsonify({
+        'voluntary_national': voluntary_national,
+        'voluntary_local':    voluntary_local,
+        'online':             online,
+        'county_stats':       county_stats,
+    })
+
+
+# ─── API: LISTA ITEMS ─────────────────────────────────────────────────────────
+
 @app.route('/api/items')
 def api_items():
-    conn = get_db()
-    items = conn.execute('SELECT * FROM items ORDER BY category, name').fetchall()
-    result = []
-    for item in items:
-        op = conn.execute(
-            'SELECT AVG(price) FROM online_prices WHERE item_id=?', (item['id'],)
-        ).fetchone()[0]
-        vp = conn.execute(
-            'SELECT AVG(price) FROM voluntary_prices WHERE item_id=?', (item['id'],)
-        ).fetchone()[0]
-        vc = conn.execute(
-            'SELECT COUNT(*) FROM voluntary_prices WHERE item_id=?', (item['id'],)
-        ).fetchone()[0]
-        result.append({
-            'id':              item['id'],
-            'name':            item['name'],
-            'category':        item['category'],
-            'unit':            item['unit'],
-            'online_price':    round(op, 2) if op else None,
-            'voluntary_price': round(vp, 2) if vp else None,
-            'voluntary_count': vc,
-        })
-    conn.close()
-    return jsonify(result)
- 
- 
-@app.route('/api/chart-data')
-def api_chart_data():
-    """Agregare lunară pe 3 ani pentru grafic."""
-    conn = get_db()
-    now = datetime.now()
-    labels, online_vals, voluntary_vals = [], [], []
- 
-    for i in range(35, -1, -1):
-        d = now - timedelta(days=i * 30)
-        labels.append(d.strftime('%b %Y'))
-        yr = d.strftime('%G')
-        # weeks in this approximate month
-        w_start = int((d - timedelta(days=15)).strftime('%V'))
-        w_end   = int((d + timedelta(days=15)).strftime('%V'))
- 
-        def avg_in_month(table):
-            rows = conn.execute(
-                f"SELECT price FROM {table} WHERE week_date LIKE ?", (f"{yr}-W%",)
-            ).fetchall()
-            prices = [r[0] for r in rows]
-            return round(sum(prices) / len(prices), 2) if prices else None
- 
-        online_vals.append(avg_in_month('online_prices'))
-        voluntary_vals.append(avg_in_month('voluntary_prices'))
- 
-    conn.close()
-    return jsonify({'labels': labels, 'online': online_vals, 'voluntary': voluntary_vals})
- 
- 
-@app.route('/api/submit-price', methods=['POST'])
-def submit_price():
-    data = request.get_json(silent=True) or {}
-    item_id = data.get('item_id')
-    price   = data.get('price')
- 
-    if not item_id or not price:
-        return jsonify({'error': 'Date lipsă (item_id, price)'}), 400
+    items = db.get_all_items()
+    return jsonify(items)
+
+
+# ─── API: PARSARE PREVIEW ─────────────────────────────────────────────────────
+
+@app.route('/api/parse-preview', methods=['POST'])
+def parse_preview():
+    """Parseaza textul si returneaza preview inainte de submit."""
+    text = request.json.get('text', '').strip()
+    if not text:
+        return jsonify({'error': 'Text gol'}), 400
+
+    keys, err = parse_item(text)
+    if err:
+        return jsonify({'error': err}), 422
+
+    return jsonify({
+        'display_name':  keys['display_name'],
+        'category':      keys['category'],
+        'height_bucket': keys['height_bucket'],
+        'root_type':     keys['root_type'],
+        'clt_size':      keys['clt_size'],
+        'unit':          keys['unit'],
+        'canonical_key': keys['canonical_key'],
+        'level1_key':    keys['level1_key'],
+    })
+
+
+# ─── API: CONTRIBUIRE PRET ────────────────────────────────────────────────────
+
+@app.route('/api/contribute', methods=['POST'])
+def contribute():
+    data = request.json or {}
+    text   = data.get('text', '').strip()
+    price  = data.get('price')
+    county = data.get('county', '').strip() or None
+
+    if not text or not price:
+        return jsonify({'error': 'Lipsesc date obligatorii'}), 400
+
     try:
-        item_id = int(item_id)
-        price   = float(price)
+        price = float(price)
+        if price <= 0:
+            raise ValueError
     except (ValueError, TypeError):
-        return jsonify({'error': 'Valori invalide'}), 400
-    if price <= 0:
-        return jsonify({'error': 'Prețul trebuie să fie > 0'}), 400
- 
-    ip_hash = hash_ip(get_client_ip())
- 
-    if is_rate_limited(ip_hash, item_id):
-        return jsonify({'error': '⚠️ Ai înregistrat deja un preț pentru acest item săptămâna aceasta.'}), 429
- 
-    allowed, err_msg = check_and_enforce_rules(ip_hash, item_id, price)
-    if not allowed:
-        return jsonify({'error': err_msg}), 422
- 
-    conn = get_db()
-    conn.execute(
-        'INSERT INTO voluntary_prices (item_id,price,ip_hash,week_date) VALUES (?,?,?,?)',
-        (item_id, price, ip_hash, get_week_date())
-    )
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True, 'message': '✅ Preț înregistrat! Mulțumim pentru contribuție.'})
- 
- 
+        return jsonify({'error': 'Pret invalid'}), 400
+
+    keys, err = parse_item(text)
+    if err or not keys:
+        return jsonify({'error': f'Nu am putut identifica produsul: {err}'}), 422
+
+    ip      = get_client_ip()
+    ip_hash = db.hash_ip(ip)
+
+    item_id, _ = db.get_or_create_item(keys)
+    ok, msg    = db.add_voluntary_price(item_id, price, county, ip_hash)
+
+    if ok:
+        return jsonify({'success': True, 'message': msg, 'item': keys['display_name']})
+    return jsonify({'success': False, 'message': msg}), 429
+
+
+# ─── API: UPLOAD FISIER ───────────────────────────────────────────────────────
+
 @app.route('/api/upload', methods=['POST'])
-def upload_file():
+def upload():
     if 'file' not in request.files:
-        return jsonify({'error': 'Niciun fișier trimis'}), 400
-    file = request.files['file']
-    if not file.filename:
-        return jsonify({'error': 'Fișier fără nume'}), 400
- 
-    fname    = file.filename.lower()
-    ip_hash  = hash_ip(get_client_ip())
-    week     = get_week_date()
-    imported = 0
-    errors   = []
-    conn     = get_db()
- 
-    def try_import(name_raw, price_raw):
-        nonlocal imported
-        try:
-            price = float(str(price_raw).replace('RON','').replace('lei','').replace(' ','').replace(',','.'))
-        except (ValueError, TypeError):
-            errors.append(f"Preț invalid: {price_raw}")
-            return
-        item = conn.execute(
-            'SELECT id FROM items WHERE name LIKE ?', (f'%{str(name_raw).strip()}%',)
-        ).fetchone()
-        if not item:
-            errors.append(f"Produs negăsit: {name_raw}")
-            return
-        if not is_rate_limited(ip_hash, item['id']):
-            allowed, err_msg = check_and_enforce_rules(ip_hash, item['id'], price)
-            if not allowed:
-                errors.append(f"{err_msg} | produs: {name_raw}")
-            else:
-                conn.execute(
-                    'INSERT INTO voluntary_prices (item_id,price,ip_hash,week_date) VALUES (?,?,?,?)',
-                    (item['id'], price, ip_hash, week)
-                )
-                imported += 1
- 
+        return jsonify({'error': 'Niciun fisier primit'}), 400
+
+    f      = request.files['file']
+    county = request.form.get('county', '').strip() or None
+    fname  = f.filename.lower()
+    ip     = get_client_ip()
+    ip_hash = db.hash_ip(ip)
+
+    results = {'ok': 0, 'skipped': 0, 'errors': [], 'warnings': []}
+
+    if fname.endswith('.xlsx') or fname.endswith('.xls'):
+        _process_excel(f, county, ip_hash, results)
+    elif fname.endswith('.pdf'):
+        _process_pdf(f, county, ip_hash, results)
+    elif fname.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        _process_image(f, county, ip_hash, results)
+    else:
+        return jsonify({'error': 'Format nesupportat. Acceptam: xlsx, pdf, jpg, png'}), 400
+
+    return jsonify(results)
+
+
+def _add_from_text_and_price(text, price_raw, county, ip_hash, results):
+    """Helper comun pentru procesarea unui rand din orice sursa."""
     try:
-        if fname.endswith(('.xlsx', '.xls')):
-            wb = openpyxl.load_workbook(BytesIO(file.read()), data_only=True)
-            ws = wb.active
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if row[0] and row[1]:
-                    try_import(row[0], row[1])
- 
-        elif fname.endswith('.pdf'):
-            with pdfplumber.open(BytesIO(file.read())) as pdf:
-                for page in pdf.pages:
-                    for table in (page.extract_tables() or []):
-                        for row in table[1:]:
-                            if row and len(row) >= 2 and row[0] and row[1]:
-                                try_import(row[0], row[1])
+        price = float(str(price_raw).replace(',', '.').strip())
+        if price <= 0:
+            results['skipped'] += 1
+            return
+    except (ValueError, TypeError):
+        results['skipped'] += 1
+        return
+
+    keys, err = parse_item(text)
+    if err or not keys:
+        results['warnings'].append(f"Nu am identificat '{text[:60]}': {err}")
+        results['skipped'] += 1
+        return
+
+    item_id, _ = db.get_or_create_item(keys)
+    ok, msg = db.add_voluntary_price(item_id, price, county, ip_hash)
+    if ok:
+        results['ok'] += 1
+    else:
+        results['warnings'].append(f"{keys['display_name']}: {msg}")
+        results['skipped'] += 1
+
+
+def _process_excel(file_obj, county, ip_hash, results):
+    if not HAS_EXCEL:
+        results['errors'].append('openpyxl nu este instalat')
+        return
+    try:
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            return
+
+        # Detecteaza coloanele automat din header
+        header = [str(c).lower().strip() if c else '' for c in rows[0]]
+        name_col  = _find_col(header, ['produs', 'denumire', 'species', 'name', 'item', 'plantа'])
+        price_col = _find_col(header, ['pret', 'price', 'valoare', 'cost', 'ron', 'lei'])
+
+        if name_col is None or price_col is None:
+            # Incearca primele 2 coloane
+            name_col, price_col = 0, 1
+            data_rows = rows
         else:
-            return jsonify({'error': 'Tip de fișier nesupportat. Folosiți .xlsx sau .pdf'}), 400
- 
-        conn.commit()
+            data_rows = rows[1:]
+
+        for row in data_rows:
+            if not row or len(row) <= max(name_col, price_col):
+                continue
+            text = str(row[name_col]).strip() if row[name_col] else ''
+            price_raw = row[price_col]
+            if text and text.lower() not in ('none', 'nan', ''):
+                _add_from_text_and_price(text, price_raw, county, ip_hash, results)
     except Exception as e:
-        conn.rollback()
-        return jsonify({'error': f'Eroare la procesare: {str(e)}'}), 500
-    finally:
-        conn.close()
- 
-    return jsonify({'success': True, 'imported': imported, 'errors': errors[:10]})
- 
- 
-# ─── STARTUP ─────────────────────────────────────────────────────────────────
- 
-init_db()
- 
+        results['errors'].append(f'Eroare Excel: {str(e)[:100]}')
+
+
+def _find_col(header, keywords):
+    for i, h in enumerate(header):
+        for kw in keywords:
+            if kw in h:
+                return i
+    return None
+
+
+def _process_pdf(file_obj, county, ip_hash, results):
+    if not HAS_PDF:
+        results['errors'].append('pdfplumber nu este instalat')
+        return
+    try:
+        content = file_obj.read()
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages:
+                # Incearca tabele
+                tables = page.extract_tables()
+                if tables:
+                    for table in tables:
+                        for row in table:
+                            if not row or len(row) < 2:
+                                continue
+                            text = str(row[0]).strip() if row[0] else ''
+                            price_raw = row[1] if len(row) > 1 else None
+                            if text:
+                                _add_from_text_and_price(text, price_raw, county, ip_hash, results)
+                else:
+                    # Text liber — cauta linii cu preturi
+                    text = page.extract_text() or ''
+                    for line in text.splitlines():
+                        import re
+                        m = re.search(r'(.+?)\s+(\d[\d\s,.]+)\s*(?:ron|lei|RON|Lei)?', line)
+                        if m:
+                            _add_from_text_and_price(
+                                m.group(1).strip(),
+                                m.group(2).strip(),
+                                county, ip_hash, results
+                            )
+    except Exception as e:
+        results['errors'].append(f'Eroare PDF: {str(e)[:100]}')
+
+
+def _process_image(file_obj, county, ip_hash, results):
+    if not HAS_OCR:
+        results['errors'].append('pytesseract/Pillow nu sunt instalate. OCR indisponibil.')
+        return
+    try:
+        import re
+        img  = Image.open(file_obj)
+        text = pytesseract.image_to_string(img, lang='ron+eng')
+        for line in text.splitlines():
+            m = re.search(r'(.+?)\s+(\d[\d\s,.]+)\s*(?:ron|lei|RON|Lei)?', line)
+            if m:
+                _add_from_text_and_price(
+                    m.group(1).strip(),
+                    m.group(2).strip(),
+                    county, ip_hash, results
+                )
+        if results['ok'] == 0 and results['skipped'] == 0:
+            results['warnings'].append('Nu am putut extrage date din imagine. Verifica calitatea.')
+    except Exception as e:
+        results['errors'].append(f'Eroare OCR: {str(e)[:100]}')
+
+
+# ─── ADMIN: LOGIN ─────────────────────────────────────────────────────────────
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        if (request.form.get('username') == ADMIN_USER and
+                request.form.get('password') == ADMIN_PASS):
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin_dashboard'))
+        flash('Credentiale incorecte.')
+    return render_template('admin_login.html')
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('admin_login'))
+
+
+# ─── ADMIN: DASHBOARD ─────────────────────────────────────────────────────────
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    items        = db.get_all_items()
+    banned_ips   = db.get_banned_ips()
+    sources      = db.get_scraping_sources()
+    total_prices = db.get_total_prices_count()
+    return render_template(
+        'admin.html',
+        items=items,
+        banned_ips=banned_ips,
+        sources=sources,
+        total_prices=total_prices,
+        section='dashboard',
+    )
+
+
+# ─── ADMIN: CATALOG ───────────────────────────────────────────────────────────
+
+@app.route('/admin/catalog')
+@admin_required
+def admin_catalog():
+    items = db.get_all_items()
+    return render_template('admin.html', items=items, section='catalog',
+                           banned_ips=[], sources=[], total_prices=0)
+
+
+@app.route('/admin/catalog/delete/<int:item_id>', methods=['POST'])
+@admin_required
+def admin_delete_item(item_id):
+    db.delete_item(item_id)
+    flash('Item sters.')
+    return redirect(url_for('admin_catalog'))
+
+
+# ─── ADMIN: PRETURI ───────────────────────────────────────────────────────────
+
+@app.route('/admin/prices/delete', methods=['POST'])
+@admin_required
+def admin_delete_price():
+    price_id = request.form.get('price_id', type=int)
+    source   = request.form.get('source', 'voluntary')
+    if price_id:
+        db.delete_price(price_id, source)
+        flash('Pret sters.')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/prices/delete-week', methods=['POST'])
+@admin_required
+def admin_delete_week():
+    item_id = request.form.get('item_id', type=int)
+    week    = request.form.get('week', type=int)
+    year    = request.form.get('year', type=int)
+    source  = request.form.get('source', 'voluntary')
+    if item_id and week and year:
+        db.delete_prices_for_week(item_id, week, year, source)
+        flash(f'Preturi sterse pentru saptamana {year}-W{week}.')
+    return redirect(url_for('admin_dashboard'))
+
+
+# ─── ADMIN: IP-URI ────────────────────────────────────────────────────────────
+
+@app.route('/admin/ips')
+@admin_required
+def admin_ips():
+    banned_ips = db.get_banned_ips()
+    return render_template('admin.html', banned_ips=banned_ips, section='ips',
+                           items=[], sources=[], total_prices=0)
+
+
+@app.route('/admin/ips/unban', methods=['POST'])
+@admin_required
+def admin_unban():
+    ip_hash = request.form.get('ip_hash')
+    item_id = request.form.get('item_id', type=int)
+    if ip_hash and item_id:
+        db.unban_ip(ip_hash, item_id)
+        flash('IP deblocat.')
+    return redirect(url_for('admin_ips'))
+
+
+# ─── ADMIN: SCRAPING ──────────────────────────────────────────────────────────
+
+@app.route('/admin/scraping')
+@admin_required
+def admin_scraping():
+    sources = db.get_scraping_sources()
+    return render_template('admin.html', sources=sources, section='scraping',
+                           items=[], banned_ips=[], total_prices=0)
+
+
+@app.route('/admin/scraping/run', methods=['POST'])
+@admin_required
+def admin_run_scraping():
+    """Declanseaza manual scraping-ul."""
+    import threading
+    from scraper import run_all_scrapers
+    thread = threading.Thread(target=run_all_scrapers, daemon=True)
+    thread.start()
+    flash('Scraping pornit in fundal. Verifica statusul surselor in cateva minute.')
+    return redirect(url_for('admin_scraping'))
+
+
+@app.route('/admin/scraping/toggle/<int:source_id>', methods=['POST'])
+@admin_required
+def admin_toggle_source(source_id):
+    conn = db.get_db()
+    src = conn.execute("SELECT active FROM scraping_sources WHERE id=?", (source_id,)).fetchone()
+    if src:
+        new_val = 0 if src['active'] else 1
+        conn.execute("UPDATE scraping_sources SET active=? WHERE id=?", (new_val, source_id))
+        conn.commit()
+    conn.close()
+    return redirect(url_for('admin_scraping'))
+
+
+# ─── CRON ENDPOINT (Render) ───────────────────────────────────────────────────
+
+@app.route('/cron/scrape', methods=['POST'])
+def cron_scrape():
+    """Endpoint apelat de Render Cron Job luni 03:00."""
+    secret = request.headers.get('X-Cron-Secret') or request.args.get('secret')
+    if secret != CRON_SECRET:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    import threading
+    from scraper import run_all_scrapers
+    thread = threading.Thread(target=run_all_scrapers, daemon=True)
+    thread.start()
+    return jsonify({'status': 'started', 'time': datetime.utcnow().isoformat()})
+
+
+# ─── STARTUP ──────────────────────────────────────────────────────────────────
+
+with app.app_context():
+    db.init_db()
+    log.info("Baza de date initializata.")
+
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(debug=True, port=5000)

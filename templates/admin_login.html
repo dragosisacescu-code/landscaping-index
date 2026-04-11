@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login — Landscaping Index</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .login-box {
+      background: #fff;
+      border: 1px solid #dde1e7;
+      border-radius: 8px;
+      padding: 36px 40px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.07);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .logo-icon {
+      font-size: 36px;
+      display: block;
+      margin-bottom: 8px;
+    }
+    .logo h1 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1a5c3a;
+    }
+    .logo p {
+      font-size: 12px;
+      color: #5a6270;
+      margin-top: 3px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #5a6270;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      margin-bottom: 5px;
+    }
+    input[type=text], input[type=password] {
+      width: 100%;
+      border: 1px solid #dde1e7;
+      border-radius: 5px;
+      padding: 9px 12px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .15s;
+      margin-bottom: 14px;
+    }
+    input:focus { border-color: #2d8a5a; }
+    .btn {
+      width: 100%;
+      background: #1a5c3a;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 11px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s;
+      margin-top: 4px;
+    }
+    .btn:hover { background: #2d8a5a; }
+    .alert {
+      background: #fde8e8;
+      color: #c0392b;
+      border-radius: 5px;
+      padding: 9px 12px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    .back-link {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 12px;
+    }
+    .back-link a { color: #1a5c3a; text-decoration: none; }
+    .back-link a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="logo">
+      <span class="logo-icon">🌿</span>
+      <h1>Landscaping Index</h1>
+      <p>Panou Administrare</p>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for msg in messages %}
+          <div class="alert">⚠️ {{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="post">
+      <label>Utilizator</label>
+      <input type="text" name="username" autocomplete="username" autofocus required />
+      <label>Parolă</label>
+      <input type="password" name="password" autocomplete="current-password" required />
+      <button class="btn" type="submit">Intră în Admin</button>
+    </form>
+
+    <div class="back-link">
+      <a href="/">← Înapoi la site</a>
+    </div>
+  </div>
+</body>
+</html>

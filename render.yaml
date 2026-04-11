@@ -3,11 +3,36 @@ services:
     name: landscaping-index
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.0"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: DB_DIR
+        value: /data
+      - key: ANTHROPIC_API_KEY
+        sync: false   # trebuie setat manual in dashboard Render
+      - key: ADMIN_USER
+        sync: false   # optional, default: admin
+      - key: ADMIN_PASS
+        sync: false   # optional, default: landscaping2026
     disk:
-      name: data
-      mountPath: /opt/render/project/src
+      name: landscaping-db
+      mountPath: /data
       sizeGB: 1
+
+  - type: cron
+    name: landscaping-scraper
+    runtime: python
+    schedule: "0 3 * * 1"   # luni 03:00 UTC
+    buildCommand: pip install -r requirements.txt
+    startCommand: >
+      curl -X POST https://landscaping-index.onrender.com/cron/scrape
+      -H "X-Cron-Secret: $CRON_SECRET"
+    envVars:
+      - key: CRON_SECRET
+        fromService:
+          name: landscaping-index
+          type: web
+          envVarKey: CRON_SECRET

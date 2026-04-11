@@ -3,434 +3,800 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Landscaping Index România 🌿</title>
+  <title>Landscaping Index România</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     :root {
-      --green:  #2e7d32;
-      --blue:   #1565c0;
-      --bg:     #f5f7f2;
-      --card:   #ffffff;
-      --border: #dde5d4;
-      --text:   #1a2e1a;
-      --muted:  #6b7c6b;
+      --bg:       #f4f5f7;
+      --surface:  #ffffff;
+      --border:   #dde1e7;
+      --text:     #1a1d23;
+      --text-sec: #5a6270;
+      --green:    #1a5c3a;
+      --green-lt: #2d8a5a;
+      --blue:     #1c4f9c;
+      --blue-lt:  #2e6fd4;
+      --orange:   #e07b20;
+      --radius:   6px;
+      --shadow:   0 1px 4px rgba(0,0,0,.08);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
 
-    header {
-      background: linear-gradient(135deg, var(--green), #1b5e20);
-      color: #fff; padding: 24px 32px;
-      display: flex; align-items: center; gap: 14px;
+    /* ── NAV ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      height: 52px;
+      position: sticky; top: 0; z-index: 100;
     }
-    header h1 { font-size: 1.5rem; font-weight: 700; }
-    header p  { font-size: 0.85rem; opacity: .8; margin-top: 2px; }
-    .badge {
-      margin-left: auto; background: rgba(255,255,255,.15);
-      border-radius: 20px; padding: 4px 14px; font-size: .8rem;
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--green); text-decoration: none; }
+    .logo svg { width: 28px; height: 28px; }
+    .nav-links { margin-left: auto; display: flex; gap: 24px; }
+    .nav-links a { color: var(--text-sec); text-decoration: none; font-size: 13px; }
+    .nav-links a:hover { color: var(--green); }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, var(--green) 0%, #0d3d24 100%);
+      color: #fff;
+      padding: 60px 24px 48px;
+      text-align: center;
     }
+    .hero h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .hero p  { font-size: 16px; opacity: .85; max-width: 560px; margin: 0 auto 28px; line-height: 1.6; }
+    .hero-stats {
+      display: inline-flex; gap: 32px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: var(--radius);
+      padding: 14px 28px;
+      margin-bottom: 28px;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat .num { font-size: 26px; font-weight: 800; }
+    .hero-stat .lbl { font-size: 11px; opacity: .75; text-transform: uppercase; letter-spacing: .5px; }
+    .btn-primary {
+      background: #fff; color: var(--green);
+      border: none; border-radius: var(--radius);
+      padding: 12px 28px; font-size: 14px; font-weight: 700;
+      cursor: pointer; text-decoration: none; display: inline-block;
+      transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: .9; }
 
-    main { max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
+    /* ── CONTAINER ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
 
-    /* ── Chart Card ── */
+    /* ── CARD ── */
     .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 12px; padding: 24px; margin-bottom: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.05);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 24px;
+      margin-bottom: 20px;
     }
-    .card h2 { font-size: 1rem; color: var(--muted); margin-bottom: 16px; }
-    .legend { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
-    .legend-item { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; }
-    .dot-blue  { background: var(--blue); }
-    .dot-green { background: #43a047; }
+    .card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-sec); margin-bottom: 16px; }
 
-    /* ── Filters ── */
-    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
-    .filters select, .filters input {
-      border: 1px solid var(--border); border-radius: 8px;
-      padding: 8px 12px; font-size: .875rem; background: var(--card);
-      color: var(--text); outline: none;
+    /* ── CONTROLS ── */
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+    select, input[type=text], input[type=number] {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 7px 10px;
+      font-size: 13px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
     }
-    .filters select:focus, .filters input:focus { border-color: var(--green); }
-
-    /* ── Table ── */
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-    thead th {
-      background: #f0f4ed; padding: 10px 14px; text-align: left;
-      font-weight: 600; border-bottom: 2px solid var(--border);
-      white-space: nowrap;
-    }
-    tbody tr:hover { background: #f9fdf5; }
-    tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
-    .cat-badge {
-      display: inline-block; border-radius: 20px; padding: 2px 10px;
-      font-size: .75rem; font-weight: 600;
-    }
-    .cat-Conifere  { background: #e8f5e9; color: #2e7d32; }
-    .cat-Arbuști   { background: #f3e5f5; color: #6a1b9a; }
-    .cat-Arbori    { background: #fff3e0; color: #e65100; }
-    .cat-Materiale { background: #e3f2fd; color: #0d47a1; }
-
-    .price-online    { color: var(--blue);  font-weight: 600; }
-    .price-voluntary { color: #2e7d32; font-weight: 600; }
-    .price-none      { color: #bbb; font-style: italic; }
-
-    /* ── Submit form ── */
-    .submit-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
-    .submit-row select, .submit-row input[type=number] {
-      flex: 1; min-width: 160px;
-      border: 1px solid var(--border); border-radius: 8px;
-      padding: 9px 12px; font-size: .875rem; outline: none;
-    }
+    select:focus, input:focus { border-color: var(--green-lt); }
     .btn {
-      padding: 9px 20px; border: none; border-radius: 8px; cursor: pointer;
-      font-size: .875rem; font-weight: 600; transition: opacity .15s;
+      border-radius: var(--radius);
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      transition: background .15s;
     }
-    .btn:hover { opacity: .85; }
-    .btn-green { background: var(--green); color: #fff; }
-    .btn-blue  { background: var(--blue);  color: #fff; }
+    .btn:hover { background: var(--bg); }
+    .btn-green { background: var(--green); color: #fff; border-color: var(--green); }
+    .btn-green:hover { background: var(--green-lt); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
 
-    /* ── Upload ── */
-    .upload-area {
-      border: 2px dashed var(--border); border-radius: 10px;
-      padding: 28px; text-align: center; cursor: pointer;
-      transition: border-color .2s; margin-bottom: 12px;
-    }
-    .upload-area:hover, .upload-area.drag { border-color: var(--green); }
-    .upload-area input { display: none; }
-    .upload-area p { color: var(--muted); font-size: .9rem; margin-top: 8px; }
+    /* ── TABS ── */
+    .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+    .tab { padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-sec); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); }
 
-    /* ── Toast ── */
-    #toast {
-      position: fixed; bottom: 24px; right: 24px; z-index: 999;
-      background: #323232; color: #fff; padding: 12px 20px;
-      border-radius: 8px; font-size: .875rem;
-      opacity: 0; transform: translateY(10px);
-      transition: opacity .3s, transform .3s; pointer-events: none;
+    /* ── CHARTS ── */
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 768px) { .charts-row { grid-template-columns: 1fr; } }
+    .chart-wrap { position: relative; height: 260px; }
+    .chart-label { font-size: 11px; color: var(--text-sec); margin-bottom: 6px; font-weight: 600; }
+
+    /* ── COUNTY TABLE ── */
+    .county-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .county-table th { text-align: left; padding: 8px 10px; background: var(--bg); color: var(--text-sec); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
+    .county-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .county-table tr.selected td { background: #e8f5ee; }
+    .bar-mini { height: 6px; background: var(--green-lt); border-radius: 3px; }
+
+    /* ── CATALOG TABLE ── */
+    .catalog-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .catalog-table th { text-align: left; padding: 9px 12px; background: var(--bg); color: var(--text-sec); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); position: sticky; top: 52px; }
+    .catalog-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    .catalog-table tr:hover td { background: #f9fafb; }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-green  { background: #d4edda; color: #1a5c3a; }
+    .badge-blue   { background: #d0e4ff; color: #1c4f9c; }
+    .badge-orange { background: #fde8cc; color: #b05a10; }
+    .badge-gray   { background: #e8eaed; color: #5a6270; }
+
+    /* ── CONTRIBUTE ── */
+    .contribute-form { display: grid; gap: 12px; max-width: 560px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-label { font-size: 12px; color: var(--text-sec); margin-bottom: 4px; font-weight: 600; }
+    .preview-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 13px;
+      min-height: 40px;
+      color: var(--text-sec);
     }
-    #toast.show { opacity: 1; transform: translateY(0); }
-    #toast.success { background: #2e7d32; }
-    #toast.error   { background: #c62828; }
+    .preview-box.identified { color: var(--green); font-weight: 600; border-color: var(--green-lt); }
+    .preview-box.error { color: #c0392b; border-color: #e74c3c; }
+    .alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-top: 8px; }
+    .alert-success { background: #d4edda; color: #1a5c3a; }
+    .alert-error   { background: #fde8cc; color: #8b3a00; }
+
+    /* ── UPLOAD ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--green-lt); background: #f0f8f4; }
+    .upload-zone input { display: none; }
+    .upload-zone p { color: var(--text-sec); font-size: 13px; margin-top: 8px; }
+    .upload-results { font-size: 13px; margin-top: 12px; }
+    .upload-results .ok     { color: var(--green); font-weight: 600; }
+    .upload-results .warn   { color: var(--orange); }
+    .upload-results .err    { color: #c0392b; }
+
+    /* ── FOOTER ── */
+    footer { text-align: center; padding: 24px; color: var(--text-sec); font-size: 12px; border-top: 1px solid var(--border); margin-top: 20px; }
+
+    /* ── SEARCH ── */
+    .search-wrap { position: relative; }
+    .search-wrap input { padding-left: 30px; width: 220px; }
+    .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-sec); }
+
+    /* ── LEGEND ── */
+    .legend { display: flex; gap: 16px; font-size: 12px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-sec); }
+    .legend-dot  { width: 10px; height: 10px; border-radius: 50%; }
   </style>
 </head>
 <body>
 
-<header>
-  <div>
-    <h1>🌿 Landscaping Index România</h1>
-    <p>Observator de prețuri — piața de landscaping, 2026</p>
+<!-- NAV -->
+<nav>
+  <a class="logo" href="/">
+    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="14" cy="14" r="13" fill="#e8f5ee"/>
+      <path d="M14 22V12" stroke="#1a5c3a" stroke-width="2" stroke-linecap="round"/>
+      <path d="M14 16 C14 16 10 13 8 10 C10 9 13 11 14 13" fill="#2d8a5a"/>
+      <path d="M14 14 C14 14 18 11 20 8 C18 7 15 9 14 11" fill="#1a5c3a"/>
+      <path d="M14 19 C14 19 11 17 9 15 C11 14 13.5 15.5 14 17" fill="#3dab6e"/>
+    </svg>
+    Landscaping Index RO
+  </a>
+  <div class="nav-links">
+    <a href="#grafic">Grafic</a>
+    <a href="#catalog">Catalog</a>
+    <a href="#contribuie">Contribuie</a>
+    <a href="#upload">Upload</a>
+    <a href="/admin" style="color:var(--green);font-weight:600;">Admin</a>
   </div>
-  <span class="badge" id="total-badge">Se încarcă...</span>
-</header>
+</nav>
 
-<main>
-
-  <!-- ═══ CHART ═══ -->
-  <div class="card">
-    <h2>📈 Evoluție mediană prețuri — ultimii 3 ani</h2>
-    <div class="legend">
-      <div class="legend-item"><div class="dot dot-blue"></div> Prețuri Online (scraping automat)</div>
-      <div class="legend-item"><div class="dot dot-green"></div> Prețuri Voluntare (crowdsourcing)</div>
+<!-- HERO -->
+<section class="hero">
+  <h1>Observatorul de Prețuri Landscaping România</h1>
+  <p>Date reale de piață, colectate săptămânal din surse online și voluntare. Anonim. Gratuit. Transparent.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="num" id="hero-total">{{ total_prices }}</div>
+      <div class="lbl">Prețuri Indexate</div>
     </div>
-    <canvas id="priceChart" height="90"></canvas>
+    <div class="hero-stat">
+      <div class="num" id="hero-items">{{ categories.values() | sum(attribute='__len__') if categories else 0 }}</div>
+      <div class="lbl">Produse în Catalog</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">{{ categories | length }}</div>
+      <div class="lbl">Categorii</div>
+    </div>
   </div>
+  <a href="#contribuie" class="btn-primary">Contribuie cu prețul tău</a>
+</section>
 
-  <!-- ═══ TABEL ═══ -->
+<!-- GRAFIC -->
+<section class="container" id="grafic">
   <div class="card">
-    <h2>🗂️ Index prețuri curente (RON)</h2>
-    <div class="filters">
-      <select id="filter-cat" onchange="filterTable()">
-        <option value="">Toate categoriile</option>
-        <option value="Conifere">Conifere</option>
-        <option value="Arbuști">Arbuști</option>
-        <option value="Arbori">Arbori</option>
-        <option value="Materiale">Materiale</option>
-      </select>
-      <input id="filter-search" type="text" placeholder="🔍 Caută produs..." oninput="filterTable()"/>
+    <div class="card-title">Evoluție Prețuri — 3 Ani</div>
+
+    <!-- Controale -->
+    <div class="controls">
+      <div>
+        <div class="form-label">Produs</div>
+        <select id="item-select" onchange="loadChart()">
+          <option value="">— Selectează produs —</option>
+          {% for cat, items in categories.items() %}
+            <optgroup label="{{ cat }}">
+              {% for item in items %}
+                <option value="{{ item.level1_key }}" data-name="{{ item.display_name }}">
+                  {{ item.display_name }}
+                </option>
+              {% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <div class="form-label">Județ</div>
+        <select id="county-select" onchange="loadChart()">
+          <option value="national">Național</option>
+          {% for county in counties %}
+            <option value="{{ county }}">{{ county }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-sm" onclick="detectCounty()" style="margin-left:6px;">⚡ Auto</button>
+      </div>
+      <div style="margin-left:auto;">
+        <div class="form-label">Agregare</div>
+        <select id="level-select" onchange="loadChart()">
+          <option value="1">Nivel 1 — Specie + Înălțime</option>
+          <option value="2">Nivel 2 — + Tip Rădăcină</option>
+        </select>
+      </div>
     </div>
-    <div class="table-wrap">
-      <table id="items-table">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('national',this)">Vedere Generală</div>
+      <div class="tab" onclick="switchTab('county',this)">Național vs. Județ</div>
+      <div class="tab" onclick="switchTab('counties',this)">Clasament Județe</div>
+    </div>
+
+    <!-- Tab: National -->
+    <div id="tab-national">
+      <div class="legend" style="margin-bottom:12px;">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue-lt)"></div> Prețuri Online (medie)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green-lt)"></div> Prețuri Voluntare (medie)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e8eaed;border:1px solid var(--border)"></div> Bandă Min–Max Online</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--orange);opacity:.5"></div> Volum Contribuții</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-national"></canvas>
+      </div>
+    </div>
+
+    <!-- Tab: County comparison -->
+    <div id="tab-county" style="display:none;">
+      <div class="charts-row">
+        <div>
+          <div class="chart-label">🌍 Național</div>
+          <div class="chart-wrap"><canvas id="chart-nat2"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-label" id="county-chart-label">📍 Județ Selectat</div>
+          <div class="chart-wrap"><canvas id="chart-local"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: County ranking -->
+    <div id="tab-counties" style="display:none;">
+      <table class="county-table" id="county-table">
         <thead>
           <tr>
-            <th>Produs</th>
-            <th>Categorie</th>
-            <th>Unitate</th>
-            <th>💙 Preț Online</th>
-            <th>💚 Preț Voluntar</th>
-            <th>Contribuții</th>
+            <th>#</th><th>Județ</th><th>Contribuții</th><th>Distribuție</th><th>Preț Mediu</th>
           </tr>
         </thead>
-        <tbody id="items-body">
-          <tr><td colspan="6" style="text-align:center;color:#aaa;padding:24px">Se încarcă...</td></tr>
+        <tbody id="county-tbody">
+          <tr><td colspan="5" style="color:var(--text-sec);padding:20px;">Selectează un produs pentru a vedea clasamentul.</td></tr>
         </tbody>
       </table>
     </div>
   </div>
+</section>
 
-  <!-- ═══ SUBMIT PRICE ═══ -->
+<!-- CATALOG -->
+<section class="container" id="catalog">
   <div class="card">
-    <h2>💚 Contribuie cu un preț voluntar</h2>
-    <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
-      Anonim · Fără cont · Limitat la 1 preț / produs / săptămână / IP
-    </p>
-    <div class="submit-row">
-      <select id="submit-item">
-        <option value="">— Alege produsul —</option>
+    <div class="card-title">Catalog Produse</div>
+    <div class="controls">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="catalog-search" placeholder="Caută produs..." oninput="filterCatalog()" />
+      </div>
+      <select id="catalog-cat-filter" onchange="filterCatalog()">
+        <option value="">Toate categoriile</option>
+        {% for cat in categories.keys() %}
+          <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
       </select>
-      <input type="number" id="submit-price" placeholder="Preț (RON)" min="0.01" step="0.01"/>
-      <button class="btn btn-green" onclick="submitPrice()">Trimite preț</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="catalog-table" id="catalog-table">
+        <thead>
+          <tr>
+            <th>Produs</th>
+            <th>Categorie</th>
+            <th>Înălțime</th>
+            <th>Rădăcină</th>
+            <th>CLT</th>
+            <th>Unitate</th>
+            <th>Acțiune</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat, items in categories.items() %}
+            {% for item in items %}
+            <tr data-cat="{{ cat }}" data-name="{{ item.display_name | lower }}">
+              <td><strong>{{ item.display_name }}</strong></td>
+              <td><span class="badge badge-green">{{ cat }}</span></td>
+              <td>{{ item.height_bucket or '—' }}</td>
+              <td>{{ item.root_type or '—' }}</td>
+              <td>{{ item.clt_size or '—' }}</td>
+              <td><span class="badge badge-gray">{{ item.unit }}</span></td>
+              <td>
+                <button class="btn btn-sm btn-green"
+                  onclick="selectItem('{{ item.level1_key }}','{{ item.display_name }}')">
+                  📊 Vezi grafic
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
+</section>
 
-  <!-- ═══ UPLOAD ═══ -->
+<!-- CONTRIBUIE -->
+<section class="container" id="contribuie">
   <div class="card">
-    <h2>📤 Upload fișier de prețuri (.xlsx sau .pdf)</h2>
-    <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
-      Format Excel: coloana A = Produs, coloana B = Preț (RON) · Aceeași regulă 1/săpt/IP se aplică
+    <div class="card-title">Contribuie cu Prețul Tău</div>
+    <p style="color:var(--text-sec);font-size:13px;margin-bottom:16px;">
+      Introdu produsul în cuvintele tale. Agentul AI îl identifică automat. Anonim, fără cont.
     </p>
-    <label class="upload-area" id="drop-zone">
-      <input type="file" id="file-input" accept=".xlsx,.xls,.pdf" onchange="handleUpload(this)"/>
-      <div style="font-size:2rem">📁</div>
-      <p>Trage fișierul aici sau <strong>click</strong> pentru a selecta</p>
-      <p style="font-size:.8rem;margin-top:4px">Suportat: .xlsx, .xls, .pdf</p>
-    </label>
-    <div id="upload-status" style="font-size:.875rem;color:var(--muted)"></div>
+    <div class="contribute-form">
+      <div>
+        <div class="form-label">Descrie produsul (text liber)</div>
+        <input type="text" id="contrib-text" placeholder="ex: thuja 150-200cm ghiveci 10L" style="width:100%;"
+          oninput="debouncePreview()" />
+      </div>
+      <div>
+        <div class="form-label">Produs identificat</div>
+        <div class="preview-box" id="contrib-preview">Introdu o descriere pentru a vedea ce identifică agentul...</div>
+        <input type="hidden" id="contrib-level1" />
+      </div>
+      <div class="form-row">
+        <div>
+          <div class="form-label">Prețul tău (RON, fără TVA)</div>
+          <input type="number" id="contrib-price" placeholder="ex: 145.00" min="0.01" step="0.01" style="width:100%;" />
+        </div>
+        <div>
+          <div class="form-label">Județul tău</div>
+          <select id="contrib-county" style="width:100%;">
+            <option value="">— Selectează —</option>
+            {% for county in counties %}
+              <option value="{{ county }}">{{ county }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-green" onclick="submitContrib()">Trimite prețul</button>
+      </div>
+      <div id="contrib-result"></div>
+    </div>
   </div>
+</section>
 
-</main>
+<!-- UPLOAD -->
+<section class="container" id="upload">
+  <div class="card">
+    <div class="card-title">Upload Fișier cu Prețuri</div>
+    <p style="color:var(--text-sec);font-size:13px;margin-bottom:16px;">
+      Acceptăm Excel (.xlsx), PDF și imagini (JPG, PNG). Agentul AI parsează automat. Ce nu poate fi înțeles este ignorat cu feedback.
+    </p>
+    <div>
+      <div class="form-label" style="margin-bottom:8px;">Județul pentru datele din fișier</div>
+      <select id="upload-county" style="width:200px;">
+        <option value="">— Opțional —</option>
+        {% for county in counties %}
+          <option value="{{ county }}">{{ county }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="margin-top:12px;">
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('upload-input').click()"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="handleDrop(event)">
+        <input type="file" id="upload-input" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png,.webp" onchange="handleFile(this.files[0])"/>
+        <div style="font-size:32px;">📂</div>
+        <strong>Trage fișierul aici sau click pentru a selecta</strong>
+        <p>Excel, PDF, JPG, PNG — maxim 10 MB</p>
+      </div>
+      <div id="upload-results" class="upload-results"></div>
+    </div>
+  </div>
+</section>
 
-<div id="toast"></div>
+<!-- FOOTER -->
+<footer>
+  <strong>Landscaping Index România</strong> &nbsp;|&nbsp;
+  Date agregate anonim · Fără autentificare · Open Data &nbsp;|&nbsp;
+  <a href="/admin" style="color:var(--green);">Admin</a>
+</footer>
 
 <script>
-// ──────────────────────────────────────────────
-// GLOBALS
-// ──────────────────────────────────────────────
-let allItems = [];
-let chart    = null;
+// ── STATE ───────────────────────────────────────────────────────────────────
+let chartNational = null, chartNat2 = null, chartLocal = null;
+let activeTab = 'national';
+let previewTimer = null;
 
-// ──────────────────────────────────────────────
-// INIT
-// ──────────────────────────────────────────────
-async function init() {
-  await Promise.all([loadItems(), loadChart()]);
+// ── TAB SWITCH ───────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['national','county','counties'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t === name ? '' : 'none';
+  });
+  activeTab = name;
+  loadChart();
 }
 
-// ──────────────────────────────────────────────
-// ITEMS TABLE
-// ──────────────────────────────────────────────
-async function loadItems() {
+// ── DETECT COUNTY ────────────────────────────────────────────────────────────
+async function detectCounty() {
   try {
-    const res  = await fetch('/api/items');
-    allItems   = await res.json();
-    renderTable(allItems);
-    populateSelect(allItems);
-    document.getElementById('total-badge').textContent =
-      `${allItems.length} produse indexate`;
+    const res = await fetch('/api/detect-county');
+    const data = await res.json();
+    if (data.county) {
+      ['county-select','contrib-county','upload-county'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel) {
+          for (let opt of sel.options) {
+            if (opt.value === data.county) { sel.value = data.county; break; }
+          }
+        }
+      });
+      loadChart();
+    }
+  } catch(e) {}
+}
+
+// ── LOAD CHART ────────────────────────────────────────────────────────────────
+async function loadChart() {
+  const key = document.getElementById('item-select').value;
+  const county = document.getElementById('county-select').value || 'national';
+  if (!key) return;
+
+  document.getElementById('county-chart-label').textContent =
+    '📍 ' + (county === 'national' ? 'Național' : county);
+
+  try {
+    const res = await fetch(`/api/chart-data?key=${encodeURIComponent(key)}&county=${encodeURIComponent(county)}`);
+    const data = await res.json();
+
+    if (activeTab === 'national') {
+      renderNationalChart(data.voluntary_national, data.online);
+    } else if (activeTab === 'county') {
+      renderNationalChart(data.voluntary_national, data.online, 'chart-nat2');
+      renderLocalChart(data.voluntary_local || []);
+    } else if (activeTab === 'counties') {
+      renderCountyTable(data.county_stats || [], county);
+    }
   } catch(e) {
-    console.error(e);
+    console.error('Eroare chart:', e);
   }
 }
 
-function renderTable(items) {
-  const tbody = document.getElementById('items-body');
-  if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:24px">Niciun produs găsit</td></tr>';
+function renderNationalChart(voluntary, online, canvasId = 'chart-national') {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (canvasId === 'chart-national' && chartNational) chartNational.destroy();
+  if (canvasId === 'chart-nat2' && chartNat2) chartNat2.destroy();
+
+  const labels = [...new Set([
+    ...voluntary.map(d => d.label),
+    ...online.map(d => d.label)
+  ])].sort();
+
+  const volMap = Object.fromEntries(voluntary.map(d => [d.label, d]));
+  const onlMap = Object.fromEntries(online.map(d => [d.label, d]));
+
+  const chart = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'line',
+          label: 'Online (medie)',
+          data: labels.map(l => onlMap[l]?.price ?? null),
+          borderColor: '#2e6fd4',
+          backgroundColor: 'rgba(46,111,212,.08)',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          yAxisID: 'y',
+          spanGaps: true,
+        },
+        {
+          type: 'line',
+          label: 'Voluntar (medie)',
+          data: labels.map(l => volMap[l]?.price ?? null),
+          borderColor: '#2d8a5a',
+          backgroundColor: 'rgba(45,138,90,.08)',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          yAxisID: 'y',
+          spanGaps: true,
+        },
+        {
+          type: 'bar',
+          label: 'Contribuții Voluntare',
+          data: labels.map(l => volMap[l]?.count ?? 0),
+          backgroundColor: 'rgba(224,123,32,.35)',
+          yAxisID: 'y2',
+          order: 10,
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.yAxisID === 'y2') return `Contribuții: ${ctx.parsed.y}`;
+              const l = ctx.label;
+              const src = onlMap[l]?.sources;
+              let str = `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)} RON`;
+              if (src && ctx.datasetIndex === 0) {
+                const minSrc = src.reduce((a,b) => a.min<b.min?a:b, src[0]);
+                const maxSrc = src.reduce((a,b) => a.max>b.max?a:b, src[0]);
+                str += ` (min ${minSrc.min} @ ${minSrc.name}, max ${maxSrc.max} @ ${maxSrc.name})`;
+              }
+              return str;
+            }
+          }
+        }
+      },
+      scales: {
+        y:  { position: 'left',  title: { display: true, text: 'RON', font: { size: 11 } } },
+        y2: { position: 'right', title: { display: true, text: 'Contribuții', font: { size: 11 } }, grid: { drawOnChartArea: false } },
+      }
+    }
+  });
+
+  if (canvasId === 'chart-national') chartNational = chart;
+  else chartNat2 = chart;
+}
+
+function renderLocalChart(voluntary) {
+  const ctx = document.getElementById('chart-local').getContext('2d');
+  if (chartLocal) chartLocal.destroy();
+  const labels = voluntary.map(d => d.label);
+  chartLocal = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'line',
+          label: 'Voluntar Local',
+          data: voluntary.map(d => d.price),
+          borderColor: '#2d8a5a',
+          backgroundColor: 'rgba(45,138,90,.1)',
+          fill: true, tension: 0.3, pointRadius: 3,
+          yAxisID: 'y',
+        },
+        {
+          type: 'bar',
+          label: 'Contribuții',
+          data: voluntary.map(d => d.count),
+          backgroundColor: 'rgba(45,138,90,.3)',
+          yAxisID: 'y2', order: 10,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+      scales: {
+        y:  { position: 'left',  title: { display: true, text: 'RON', font: { size: 11 } } },
+        y2: { position: 'right', title: { display: true, text: 'Contribuții', font: { size: 11 } }, grid: { drawOnChartArea: false } },
+      }
+    }
+  });
+}
+
+function renderCountyTable(stats, selectedCounty) {
+  const tbody = document.getElementById('county-tbody');
+  if (!stats.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-sec);padding:20px;">Nicio contribuție pe județe pentru acest produs.</td></tr>';
     return;
   }
-  tbody.innerHTML = items.map(item => `
-    <tr>
-      <td><strong>${item.name}</strong></td>
-      <td><span class="cat-badge cat-${item.category}">${item.category}</span></td>
-      <td>${item.unit}</td>
-      <td class="${item.online_price    ? 'price-online'    : 'price-none'}">
-        ${item.online_price    ? item.online_price.toLocaleString('ro-RO') + ' RON' : 'N/A'}
-      </td>
-      <td class="${item.voluntary_price ? 'price-voluntary' : 'price-none'}">
-        ${item.voluntary_price ? item.voluntary_price.toLocaleString('ro-RO') + ' RON' : 'N/A'}
-      </td>
-      <td style="color:var(--muted)">${item.voluntary_count || 0}</td>
+  const maxCnt = Math.max(...stats.map(s => s.cnt));
+  tbody.innerHTML = stats.map((s, i) => `
+    <tr class="${s.county === selectedCounty ? 'selected' : ''}">
+      <td>${i+1}</td>
+      <td><strong>${s.county}</strong></td>
+      <td>${s.cnt}</td>
+      <td><div class="bar-mini" style="width:${Math.round(s.cnt/maxCnt*100)}%"></div></td>
+      <td>${s.avg_price ? s.avg_price.toFixed(2)+' RON' : '—'}</td>
     </tr>
   `).join('');
 }
 
-function filterTable() {
-  const cat    = document.getElementById('filter-cat').value;
-  const search = document.getElementById('filter-search').value.toLowerCase();
-  renderTable(allItems.filter(i =>
-    (!cat    || i.category === cat) &&
-    (!search || i.name.toLowerCase().includes(search))
-  ));
+// ── CATALOG FILTER ───────────────────────────────────────────────────────────
+function filterCatalog() {
+  const q   = document.getElementById('catalog-search').value.toLowerCase();
+  const cat = document.getElementById('catalog-cat-filter').value;
+  document.querySelectorAll('#catalog-table tbody tr').forEach(row => {
+    const name    = row.dataset.name || '';
+    const rowCat  = row.dataset.cat  || '';
+    const matches = (!q || name.includes(q)) && (!cat || rowCat === cat);
+    row.style.display = matches ? '' : 'none';
+  });
 }
 
-function populateSelect(items) {
-  const sel = document.getElementById('submit-item');
-  sel.innerHTML = '<option value="">— Alege produsul —</option>' +
-    items.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+function selectItem(level1Key, name) {
+  document.getElementById('item-select').value = level1Key;
+  document.getElementById('grafic').scrollIntoView({ behavior: 'smooth' });
+  loadChart();
 }
 
-// ──────────────────────────────────────────────
-// CHART
-// ──────────────────────────────────────────────
-async function loadChart() {
+// ── CONTRIBUTE ───────────────────────────────────────────────────────────────
+function debouncePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(fetchPreview, 600);
+}
+
+async function fetchPreview() {
+  const text = document.getElementById('contrib-text').value.trim();
+  const box  = document.getElementById('contrib-preview');
+  if (text.length < 3) {
+    box.className = 'preview-box';
+    box.textContent = 'Introdu o descriere pentru a vedea ce identifică agentul...';
+    return;
+  }
+  box.className = 'preview-box';
+  box.textContent = '⏳ Identificare...';
   try {
-    const res  = await fetch('/api/chart-data');
-    const data = await res.json();
-
-    const ctx = document.getElementById('priceChart').getContext('2d');
-    chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: data.labels,
-        datasets: [
-          {
-            label:           'Prețuri Online (medie)',
-            data:            data.online,
-            borderColor:     '#1565c0',
-            backgroundColor: 'rgba(21,101,192,.08)',
-            borderWidth:     2.5,
-            pointRadius:     3,
-            tension:         0.4,
-            fill:            true,
-            spanGaps:        true,
-          },
-          {
-            label:           'Prețuri Voluntare (medie)',
-            data:            data.voluntary,
-            borderColor:     '#43a047',
-            backgroundColor: 'rgba(67,160,71,.08)',
-            borderWidth:     2.5,
-            pointRadius:     3,
-            tension:         0.4,
-            fill:            true,
-            spanGaps:        true,
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ? ctx.parsed.y.toLocaleString('ro-RO') + ' RON' : 'N/A'}`
-            }
-          }
-        },
-        scales: {
-          y: {
-            grid: { color: '#eee' },
-            ticks: { callback: v => v.toLocaleString('ro-RO') + ' RON' }
-          },
-          x: { grid: { display: false } }
-        }
-      }
+    const res = await fetch('/api/parse-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
     });
+    const data = await res.json();
+    if (data.error) {
+      box.className = 'preview-box error';
+      box.textContent = '❌ ' + data.error;
+      document.getElementById('contrib-level1').value = '';
+    } else {
+      box.className = 'preview-box identified';
+      box.textContent = '✅ ' + data.display_name + ' · ' + data.category +
+        (data.height_bucket ? ' · ' + data.height_bucket : '') +
+        (data.root_type ? ' · ' + data.root_type : '');
+      document.getElementById('contrib-level1').value = data.level1_key;
+    }
   } catch(e) {
-    console.error(e);
+    box.className = 'preview-box error';
+    box.textContent = 'Eroare de conexiune.';
   }
 }
 
-// ──────────────────────────────────────────────
-// SUBMIT VOLUNTARY PRICE
-// ──────────────────────────────────────────────
-async function submitPrice() {
-  const item_id = document.getElementById('submit-item').value;
-  const price   = document.getElementById('submit-price').value;
+async function submitContrib() {
+  const text   = document.getElementById('contrib-text').value.trim();
+  const price  = document.getElementById('contrib-price').value;
+  const county = document.getElementById('contrib-county').value;
+  const result = document.getElementById('contrib-result');
 
-  if (!item_id) { showToast('Selectează un produs!', 'error'); return; }
-  if (!price || parseFloat(price) <= 0) { showToast('Introdu un preț valid!', 'error'); return; }
-
+  if (!text || !price) {
+    result.innerHTML = '<div class="alert alert-error">Completează produsul și prețul.</div>';
+    return;
+  }
+  result.innerHTML = '<div style="color:var(--text-sec);">⏳ Se trimite...</div>';
   try {
-    const res  = await fetch('/api/submit-price', {
+    const res = await fetch('/api/contribute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: parseInt(item_id), price: parseFloat(price) })
+      body: JSON.stringify({ text, price: parseFloat(price), county })
     });
     const data = await res.json();
     if (data.success) {
-      showToast(data.message, 'success');
-      document.getElementById('submit-price').value = '';
-      await loadItems();
-      if (chart) { await reloadChart(); }
+      result.innerHTML = `<div class="alert alert-success">✅ ${data.message} — ${data.item}</div>`;
+      document.getElementById('contrib-text').value  = '';
+      document.getElementById('contrib-price').value = '';
+      document.getElementById('contrib-preview').className = 'preview-box';
+      document.getElementById('contrib-preview').textContent = 'Introdu o descriere...';
+      // Refresh contor hero
+      const tot = document.getElementById('hero-total');
+      if (tot) tot.textContent = parseInt(tot.textContent) + 1;
     } else {
-      showToast(data.error || 'Eroare necunoscută', 'error');
+      result.innerHTML = `<div class="alert alert-error">⚠️ ${data.message}</div>`;
     }
   } catch(e) {
-    showToast('Eroare de rețea', 'error');
+    result.innerHTML = '<div class="alert alert-error">Eroare de conexiune.</div>';
   }
 }
 
-async function reloadChart() {
-  const res  = await fetch('/api/chart-data');
-  const data = await res.json();
-  chart.data.labels              = data.labels;
-  chart.data.datasets[0].data   = data.online;
-  chart.data.datasets[1].data   = data.voluntary;
-  chart.update();
+// ── UPLOAD ───────────────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
 }
 
-// ──────────────────────────────────────────────
-// UPLOAD
-// ──────────────────────────────────────────────
-async function handleUpload(input) {
-  const file = input.files[0];
+async function handleFile(file) {
   if (!file) return;
-
-  const status = document.getElementById('upload-status');
-  status.textContent = '⏳ Se procesează fișierul...';
+  const county  = document.getElementById('upload-county').value;
+  const results = document.getElementById('upload-results');
+  results.innerHTML = '<div style="color:var(--text-sec);">⏳ Se procesează fișierul...</div>';
 
   const fd = new FormData();
   fd.append('file', file);
+  if (county) fd.append('county', county);
 
   try {
-    const res  = await fetch('/api/upload', { method: 'POST', body: fd });
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
     const data = await res.json();
-    if (data.success) {
-      status.innerHTML = `<span style="color:#2e7d32">✅ ${data.imported} prețuri importate cu succes!</span>` +
-        (data.errors?.length ? `<br><small style="color:#e65100">Avertismente: ${data.errors.join(', ')}</small>` : '');
-      showToast(`${data.imported} prețuri importate!`, 'success');
-      await loadItems();
-    } else {
-      status.innerHTML = `<span style="color:#c62828">❌ ${data.error}</span>`;
-      showToast(data.error, 'error');
+    if (data.error) {
+      results.innerHTML = `<div class="err">❌ ${data.error}</div>`;
+      return;
     }
+    let html = `<div class="ok">✅ ${data.ok} produse indexate cu succes</div>`;
+    if (data.skipped) html += `<div class="warn">⚠️ ${data.skipped} rânduri sărite (date insuficiente sau regulă anti-manipulare)</div>`;
+    if (data.warnings?.length) {
+      html += '<div class="warn" style="margin-top:6px;"><strong>Avertismente:</strong><ul style="margin:4px 0 0 16px;">';
+      data.warnings.slice(0, 10).forEach(w => { html += `<li>${w}</li>`; });
+      if (data.warnings.length > 10) html += `<li>... și alte ${data.warnings.length - 10}</li>`;
+      html += '</ul></div>';
+    }
+    if (data.errors?.length) {
+      html += '<div class="err"><strong>Erori:</strong> ' + data.errors.join('; ') + '</div>';
+    }
+    results.innerHTML = html;
   } catch(e) {
-    status.textContent = '❌ Eroare de rețea';
-    showToast('Eroare de rețea', 'error');
+    results.innerHTML = '<div class="err">Eroare de conexiune.</div>';
   }
-  input.value = '';
 }
 
-// Drag & drop
-const dz = document.getElementById('drop-zone');
-dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('drag'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('drag');
-  const file = e.dataTransfer.files[0];
-  if (file) {
-    const fi = document.getElementById('file-input');
-    const dt = new DataTransfer(); dt.items.add(file); fi.files = dt.files;
-    handleUpload(fi);
-  }
+// ── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  detectCounty();
 });
-
-// ──────────────────────────────────────────────
-// TOAST
-// ──────────────────────────────────────────────
-function showToast(msg, type = '') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className   = `show ${type}`;
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => { t.className = ''; }, 3500);
-}
-
-// ──────────────────────────────────────────────
-init();
 </script>
 </body>
 </html>
