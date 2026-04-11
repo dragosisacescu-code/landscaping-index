@@ -287,27 +287,99 @@ def _process_excel(file_obj, county, ip_hash, results):
         if not rows:
             return
 
-        # Detecteaza coloanele automat din header
-        header = [str(c).lower().strip() if c else '' for c in rows[0]]
-        name_col  = _find_col(header, ['produs', 'denumire', 'species', 'name', 'item', 'plantа'])
-        price_col = _find_col(header, ['pret', 'price', 'valoare', 'cost', 'ron', 'lei'])
+        # ── Cauta header-ul dinamic (poate fi pe orice rand) ──────────────────
+        # Suporta formate ca "Oferta plante Silva Periland" unde header-ul
+        # e pe randul 10-11, nu pe primul rand.
+        HEADER_KEYWORDS = ['denumire', 'produs', 'species', 'name', 'item',
+                           'planta', 'plant', 'description']
+        PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei',
+                           'tarif', 'euro']
+        HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)']
+        DIAM_KEYWORDS   = ['diam', 'ø', 'cm', 'diametru', 'diameter']
 
-        if name_col is None or price_col is None:
-            # Incearca primele 2 coloane
-            name_col, price_col = 0, 1
-            data_rows = rows
-        else:
-            data_rows = rows[1:]
+        header_row_idx = None
+        header = []
+        for i, row in enumerate(rows):
+            row_str = [str(c).lower().strip() if c else '' for c in row]
+            if (_find_col(row_str, HEADER_KEYWORDS) is not None and
+                    _find_col(row_str, PRICE_KEYWORDS) is not None):
+                header_row_idx = i
+                header = row_str
+                break
+
+        if header_row_idx is None:
+            # Fallback: incearca primele 2 coloane
+            results['warnings'].append(
+                'Nu am gasit header standard. Incerc primele 2 coloane (col1=produs, col2=pret).'
+            )
+            for row in rows:
+                if not row or len(row) < 2:
+                    continue
+                text = str(row[0]).strip() if row[0] else ''
+                price_raw = row[1]
+                if text and text.lower() not in ('none', 'nan', '', 'none'):
+                    _add_from_text_and_price(text, price_raw, county, ip_hash, results)
+            return
+
+        name_col   = _find_col(header, HEADER_KEYWORDS)
+        price_col  = _find_col(header, PRICE_KEYWORDS)
+        height_col = _find_col(header, HEIGHT_KEYWORDS)
+        diam_col   = _find_col(header, DIAM_KEYWORDS)
+
+        # Detecteaza si coloana tip radacina (balot, clt etc.)
+        root_col = _find_col(header, ['balot', 'clt', 'radacina', 'tip', 'root'])
+
+        # Cuvinte care indica un rand de sectiune (titlu categorie) - de sarit
+        SECTION_WORDS = [
+            'conifere', 'arbusti', 'arbori', 'plante', 'gazon', 'materiale',
+            'total', 'subtotal', 'oferta', 'categoria', 'section', 'grupa'
+        ]
+
+        data_rows = rows[header_row_idx + 1:]
 
         for row in data_rows:
-            if not row or len(row) <= max(name_col, price_col):
+            if not row:
                 continue
-            text = str(row[name_col]).strip() if row[name_col] else ''
-            price_raw = row[price_col]
-            if text and text.lower() not in ('none', 'nan', ''):
-                _add_from_text_and_price(text, price_raw, county, ip_hash, results)
+
+            # Ignora randuri goale sau cu prea putine coloane
+            non_empty = [c for c in row if c is not None and str(c).strip() not in ('', 'None')]
+            if len(non_empty) < 2:
+                continue
+
+            # Ignora randuri de sectiune (au text in prima coloana dar fara pret)
+            name_val = str(row[name_col]).strip() if (name_col is not None and row[name_col]) else ''
+            if not name_val or name_val.lower() in ('none', 'nan'):
+                continue
+
+            # Detecteaza rand de sectiune: text lung fara pret
+            price_val = row[price_col] if price_col is not None else None
+            if price_val is None:
+                # Verifica daca e titlu de sectiune
+                if any(sw in name_val.lower() for sw in SECTION_WORDS):
+                    continue
+                results['skipped'] += 1
+                continue
+
+            # Construieste descriere bogata pentru agent AI
+            # Adauga inaltimea si diametrul daca exista — ajuta parsarea
+            desc_parts = [name_val]
+            if height_col is not None and row[height_col]:
+                h = str(row[height_col]).strip()
+                if h and h.lower() not in ('none', '0', ''):
+                    desc_parts.append(f"{h}cm")
+            if diam_col is not None and row[diam_col]:
+                d = str(row[diam_col]).strip()
+                if d and d.lower() not in ('none', '0', ''):
+                    desc_parts.append(f"diam {d}cm")
+
+            # Detecteaza tipul radacinii din randul de sectiune anterior
+            # (ex: "CONIFERE LA BALOT DE PAMANT" → balot)
+            text_for_ai = ' '.join(desc_parts)
+
+            _add_from_text_and_price(text_for_ai, price_val, county, ip_hash, results)
+
     except Exception as e:
-        results['errors'].append(f'Eroare Excel: {str(e)[:100]}')
+        results['errors'].append(f'Eroare Excel: {str(e)[:150]}')
 
 
 def _find_col(header, keywords):
