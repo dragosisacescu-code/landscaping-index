@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Landscaping Index România 🌿</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --green:#2ecc71; --blue:#3498db; --orange:#e67e22;
+      --dark:#1a1a2e; --card:#16213e; --border:#0f3460;
+      --text:#e0e0e0; --muted:#8899aa; --red:#e74c3c;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:var(--dark);color:var(--text);min-height:100vh}
+
+    /* ── HEADER ── */
+    header{
+      background:linear-gradient(135deg,var(--card) 0%,#0d2137 100%);
+      border-bottom:2px solid var(--border);
+      padding:16px 28px;
+      display:flex;align-items:center;gap:14px;
+    }
+    header .logo{font-size:1.8rem}
+    header h1{font-size:1.35rem;font-weight:700;color:var(--green)}
+    header p{font-size:0.78rem;color:var(--muted);margin-top:2px}
+    .header-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+    .badge{background:rgba(46,204,113,0.15);border:1px solid var(--green);color:var(--green);
+           padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:600}
+
+    /* ── COUNTY BAR ── */
+    .county-bar{
+      background:rgba(15,52,96,0.6);border-bottom:1px solid var(--border);
+      padding:10px 28px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    }
+    .county-bar label{font-size:0.78rem;color:var(--muted);white-space:nowrap}
+    .county-bar select{
+      background:var(--card);border:1px solid var(--border);color:var(--text);
+      border-radius:8px;padding:6px 12px;font-size:0.85rem;cursor:pointer;outline:none;
+    }
+    .county-bar select:focus{border-color:var(--green)}
+    .detect-btn{
+      background:rgba(46,204,113,0.12);border:1px solid var(--green);color:var(--green);
+      padding:5px 14px;border-radius:8px;font-size:0.78rem;cursor:pointer;transition:all 0.2s;
+    }
+    .detect-btn:hover{background:rgba(46,204,113,0.25)}
+    .county-status{font-size:0.74rem;color:var(--muted)}
+
+    /* ── LAYOUT ── */
+    .container{max-width:1280px;margin:0 auto;padding:20px}
+    .grid-main{display:grid;grid-template-columns:260px 1fr;gap:16px}
+
+    /* ── SIDEBAR ── */
+    .sidebar{display:flex;flex-direction:column;gap:14px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+    .card h3{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:12px}
+    .cat-label{font-size:0.66rem;text-transform:uppercase;color:var(--muted);margin:10px 0 4px;letter-spacing:0.06em}
+    .item-btn{
+      display:block;width:100%;background:rgba(255,255,255,0.04);border:1px solid transparent;
+      color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;text-align:left;
+      font-size:0.82rem;margin-bottom:3px;transition:all 0.18s;
+    }
+    .item-btn:hover{background:rgba(52,152,219,0.12);border-color:var(--blue)}
+    .item-btn.active{background:rgba(46,204,113,0.15);border-color:var(--green);color:var(--green);font-weight:600}
+    .item-unit{float:right;font-size:0.68rem;color:var(--muted);margin-top:2px}
+
+    /* ── MAIN PANEL ── */
+    .main-panel{display:flex;flex-direction:column;gap:14px}
+
+    /* ── STATS ROW ── */
+    .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px 14px;text-align:center}
+    .stat-value{font-size:1.25rem;font-weight:700}
+    .stat-label{font-size:0.68rem;color:var(--muted);margin-top:3px;line-height:1.4}
+    .c-blue{color:var(--blue)} .c-green{color:var(--green)}
+    .c-orange{color:var(--orange)} .c-muted{color:var(--muted)}
+
+    /* ── TABS ── */
+    .tab-bar{display:flex;gap:6px;margin-bottom:2px}
+    .tab-btn{
+      background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--muted);
+      padding:7px 18px;border-radius:8px 8px 0 0;font-size:0.82rem;cursor:pointer;transition:all 0.2s;
+    }
+    .tab-btn.active{background:var(--card);border-bottom-color:var(--card);color:var(--text);font-weight:600}
+
+    /* ── OVERVIEW CHART (single) ── */
+    #view-overview{display:block}
+    #view-detail{display:none}
+
+    .chart-card{background:var(--card);border:1px solid var(--border);border-radius:0 12px 12px 12px;padding:18px}
+    .chart-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+    .chart-title{font-size:1rem;font-weight:600}
+    .chart-sub{font-size:0.74rem;color:var(--muted);margin-top:3px}
+    .legend{display:flex;gap:16px;flex-wrap:wrap}
+    .leg-item{display:flex;align-items:center;gap:6px;font-size:0.74rem;color:var(--muted)}
+    .dot{width:9px;height:9px;border-radius:50%}
+    .d-blue{background:var(--blue)} .d-green{background:var(--green)}
+    .d-orange{background:var(--orange)}
+    canvas{max-height:320px}
+
+    /* ── DETAIL: two charts side by side ── */
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .detail-chart-card{
+      background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;
+    }
+    .detail-chart-title{font-size:0.9rem;font-weight:600;margin-bottom:4px}
+    .detail-chart-sub{font-size:0.72rem;color:var(--muted);margin-bottom:12px}
+    .detail-chart-badge{
+      display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.68rem;font-weight:600;
+      margin-bottom:10px;
+    }
+    .badge-national{background:rgba(52,152,219,0.15);border:1px solid var(--blue);color:var(--blue)}
+    .badge-county{background:rgba(46,204,113,0.15);border:1px solid var(--green);color:var(--green)}
+
+    /* ── Top Counties Table ── */
+    .top-counties{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+    .top-counties h3{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:12px}
+    table{width:100%;border-collapse:collapse;font-size:0.8rem}
+    th{text-align:left;padding:6px 10px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border)}
+    td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.04)}
+    tr:last-child td{border-bottom:none}
+    .bar-cell{position:relative}
+    .bar-fill{height:6px;border-radius:3px;background:var(--green);display:inline-block;min-width:4px}
+
+    /* ── FORMS ── */
+    .forms-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    label.field-label{display:block;font-size:0.74rem;color:var(--muted);margin-bottom:5px}
+    select.field, input[type="number"].field, input[type="file"].field{
+      width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border);
+      color:var(--text);border-radius:8px;padding:8px 11px;font-size:0.85rem;
+      margin-bottom:10px;outline:none;transition:border 0.2s;
+    }
+    select.field:focus, input.field:focus{border-color:var(--green)}
+    .btn{width:100%;padding:10px;border:none;border-radius:8px;font-size:0.88rem;
+         font-weight:600;cursor:pointer;transition:opacity 0.2s}
+    .btn:hover{opacity:0.85}
+    .btn-green{background:var(--green);color:#fff}
+    .btn-blue{background:var(--blue);color:#fff}
+    .notice{font-size:0.7rem;color:var(--muted);margin-top:7px;line-height:1.5}
+    .msg{margin-top:9px;padding:7px 12px;border-radius:8px;font-size:0.8rem;display:none}
+    .msg.success{background:rgba(46,204,113,0.15);border:1px solid var(--green);color:var(--green)}
+    .msg.error{background:rgba(231,76,60,0.15);border:1px solid var(--red);color:var(--red)}
+    .spinner{display:none;font-size:0.78rem;color:var(--muted);margin-top:7px}
+
+    footer{text-align:center;padding:20px;font-size:0.72rem;color:var(--muted);
+           border-top:1px solid var(--border);margin-top:10px}
+
+    @media(max-width:900px){
+      .grid-main{grid-template-columns:1fr}
+      .detail-grid{grid-template-columns:1fr}
+      .stats-row{grid-template-columns:1fr 1fr}
+      .forms-row{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="logo">🌿</div>
+  <div>
+    <h1>Landscaping Index România</h1>
+    <p>Observator de prețuri • Date online + Crowdsourcing anonim pe județe</p>
+  </div>
+  <div class="header-right">
+    <span class="badge">LIVE 2026</span>
+  </div>
+</header>
+
+<!-- ══ COUNTY SELECTOR BAR ══ -->
+<div class="county-bar">
+  <label>📍 Județul tău:</label>
+  <select id="county-select" onchange="onCountyChange()">
+    <option value="Național">🇷🇴 Național (toate județele)</option>
+    {% for j in judete %}
+    <option value="{{ j }}">{{ j }}</option>
+    {% endfor %}
+  </select>
+  <button class="detect-btn" onclick="autoDetectCounty()">⚡ Detectează automat</button>
+  <span class="county-status" id="county-status"></span>
+</div>
+
+<!-- ══ MAIN LAYOUT ══ -->
+<div class="container">
+  <div class="grid-main">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="card">
+        <h3>Selectează Produs</h3>
+        <div id="item-list">
+          {% for category, items in categories.items() %}
+            <div class="cat-label">{{ category }}</div>
+            {% for item in items %}
+              <button class="item-btn"
+                      data-id="{{ item.id }}"
+                      data-name="{{ item.name }}"
+                      data-unit="{{ item.unit }}"
+                      onclick="selectItem(this, {{ item.id }}, '{{ item.name }}', '{{ item.unit }}')">
+                {{ item.name }}
+                <span class="item-unit">/ {{ item.unit }}</span>
+              </button>
+            {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- SUBMIT -->
+      <div class="card">
+        <h3>💬 Contribuie Prețul Tău</h3>
+        <div id="submit-item-label" style="font-size:0.8rem;color:var(--green);margin-bottom:10px;font-weight:600">—</div>
+        <label class="field-label">Prețul tău (RON)</label>
+        <input type="number" class="field" id="submit-price" placeholder="ex: 35" min="0.01" step="0.01"/>
+        <label class="field-label">Județul (pre-selectat automat)</label>
+        <select class="field" id="submit-county">
+          <option value="Național">🇷🇴 Național</option>
+          {% for j in judete %}
+          <option value="{{ j }}">{{ j }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-green" onclick="submitPrice()">Trimite anonim</button>
+        <p class="notice">🔒 IP anonimizat (SHA-256). Limită: 1 contribuție / produs / 7 zile.</p>
+        <div class="msg" id="submit-msg"></div>
+      </div>
+
+      <!-- UPLOAD -->
+      <div class="card">
+        <h3>📁 Import Fișier</h3>
+        <label class="field-label">Județ (pentru datele importate)</label>
+        <select class="field" id="upload-county">
+          <option value="Național">🇷🇴 Național</option>
+          {% for j in judete %}
+          <option value="{{ j }}">{{ j }}</option>
+          {% endfor %}
+        </select>
+        <label class="field-label">Fișier Excel / PDF / Imagine</label>
+        <input type="file" class="field" id="upload-file" accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp"/>
+        <button class="btn btn-blue" onclick="uploadFile()">Procesează</button>
+        <p class="notice">Excel: col A = produs, col B = preț. PDF/img: OCR automat.</p>
+        <div class="spinner" id="upload-spinner">⏳ Se procesează...</div>
+        <div id="upload-result"></div>
+      </div>
+    </div>
+
+    <!-- MAIN PANEL -->
+    <div class="main-panel">
+
+      <!-- STATS -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value c-blue" id="stat-online">—</div>
+          <div class="stat-label">Online · ultima săpt.<br><span style="color:var(--blue);font-size:0.6rem">NAȚIONAL</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value c-green" id="stat-vol-nat">—</div>
+          <div class="stat-label">Voluntar · ultima săpt.<br><span style="color:var(--green);font-size:0.6rem">NAȚIONAL</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value c-orange" id="stat-vol-county">—</div>
+          <div class="stat-label">Voluntar · ultima săpt.<br><span id="stat-county-label" style="color:var(--orange);font-size:0.6rem">JUDEȚ</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value c-muted" id="stat-submissions">—</div>
+          <div class="stat-label">Contribuții voluntare<br><span style="font-size:0.6rem">naționale totale</span></div>
+        </div>
+      </div>
+
+      <!-- TAB BAR -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('overview', this)">📈 Vedere Generală</button>
+        <button class="tab-btn" onclick="switchTab('detail', this)">🔍 Detaliu Județ</button>
+      </div>
+
+      <!-- ── TAB: OVERVIEW ── -->
+      <div id="view-overview">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title" id="overview-title">Selectează un produs →</div>
+              <div class="chart-sub">Evoluție prețuri naționale · medie + volum săptămânal</div>
+            </div>
+            <div class="legend">
+              <div class="leg-item"><div class="dot d-blue"></div>Online / Scraping</div>
+              <div class="leg-item"><div class="dot d-green"></div>Voluntar (național)</div>
+              <div class="leg-item">
+                <div style="width:9px;height:9px;background:rgba(46,204,113,0.3);border-radius:2px"></div>
+                Volum contribuții
+              </div>
+            </div>
+          </div>
+          <canvas id="overviewChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ── TAB: DETAIL ── -->
+      <div id="view-detail">
+        <div class="detail-grid">
+
+          <!-- Chart 1: National -->
+          <div class="detail-chart-card">
+            <div class="detail-chart-badge badge-national">🇷🇴 Național</div>
+            <div class="detail-chart-title" id="detail-title-nat">—</div>
+            <div class="detail-chart-sub">Preț mediu + volum contribuții · săptămânal</div>
+            <canvas id="chartNational"></canvas>
+          </div>
+
+          <!-- Chart 2: County -->
+          <div class="detail-chart-card">
+            <div class="detail-chart-badge badge-county" id="detail-badge-county">📍 —</div>
+            <div class="detail-chart-title" id="detail-title-county">—</div>
+            <div class="detail-chart-sub">Preț mediu + volum contribuții locale · săptămânal</div>
+            <canvas id="chartCounty"></canvas>
+          </div>
+
+        </div>
+
+        <!-- Top Counties Table -->
+        <div class="top-counties" style="margin-top:14px">
+          <h3>📊 Top Județe după număr de contribuții</h3>
+          <table id="top-counties-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Județ</th>
+                <th>Contribuții</th>
+                <th>Preț mediu (RON)</th>
+                <th>Distribuție</th>
+              </tr>
+            </thead>
+            <tbody id="top-counties-body">
+              <tr><td colspan="5" style="color:var(--muted);text-align:center;padding:20px">Selectează un produs</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- FORMS ROW -->
+      <div class="forms-row">
+        <div class="card">
+          <h3>ℹ️ Cum funcționează?</h3>
+          <p style="font-size:0.8rem;line-height:1.75;color:var(--muted)">
+            <strong style="color:var(--blue)">Linia Albastră</strong> = prețuri colectate automat din online.<br>
+            <strong style="color:var(--green)">Linia Verde</strong> = prețuri introduse voluntar, anonim, pe județ.<br>
+            <strong style="color:var(--orange)">Barele portocalii</strong> = volumul (cantitatea) de contribuții pe săptămână — cu cât barele sunt mai mari, cu atât media este mai credibilă.<br><br>
+            Tab-ul <em>Detaliu Județ</em> afișează graficele național + local separat, alături de clasamentul județelor.
+          </p>
+        </div>
+        <div class="card">
+          <h3>📊 Statistici Generale</h3>
+          <div id="global-stats" style="font-size:0.8rem;line-height:1.9;color:var(--muted)">Se încarcă...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  Landscaping Index România © 2026 — Date publice, contribuții anonime, niciun cont necesar.<br>
+  Proiect open-source pentru transparența pieței de landscaping.
+</footer>
+
+<script>
+// ══ STATE ══
+let currentItemId = null;
+let currentUnit = 'buc';
+let currentCounty = 'Național';
+let chartOverview = null;
+let chartNat = null;
+let chartCounty = null;
+let currentTab = 'overview';
+
+// ══ INIT ══
+window.onload = async () => {
+  await autoDetectCounty();
+  const first = document.querySelector('.item-btn');
+  if (first) {
+    first.classList.add('active');
+    selectItem(first, +first.dataset.id, first.dataset.name, first.dataset.unit);
+  }
+  loadGlobalStats();
+};
+
+// ══ COUNTY DETECTION ══
+async function autoDetectCounty() {
+  document.getElementById('county-status').textContent = '⏳ Detectez locația...';
+  try {
+    const res = await fetch('/api/detect-county');
+    const data = await res.json();
+    const county = data.county;
+    setCounty(county);
+    document.getElementById('county-status').textContent =
+      county === 'Național' ? '⚠️ Locație nedetectată — selectează manual' : `✅ Detectat: ${county}`;
+  } catch {
+    document.getElementById('county-status').textContent = '⚠️ Eroare detecție';
+  }
+}
+
+function setCounty(county) {
+  currentCounty = county;
+  document.getElementById('county-select').value = county;
+  document.getElementById('submit-county').value = county;
+  document.getElementById('upload-county').value = county;
+  document.getElementById('stat-county-label').textContent = county.toUpperCase();
+  document.getElementById('detail-badge-county').textContent = `📍 ${county}`;
+  if (currentItemId) reloadCharts();
+}
+
+function onCountyChange() {
+  const county = document.getElementById('county-select').value;
+  setCounty(county);
+  document.getElementById('county-status').textContent = `📍 Județ setat manual: ${county}`;
+}
+
+// ══ ITEM SELECTION ══
+function selectItem(btn, id, name, unit) {
+  document.querySelectorAll('.item-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentItemId = id;
+  currentUnit = unit;
+  document.getElementById('submit-item-label').textContent = `${name} / ${unit}`;
+  document.getElementById('overview-title').textContent = name;
+  document.getElementById('detail-title-nat').textContent = name;
+  document.getElementById('detail-title-county').textContent = name;
+  reloadCharts();
+}
+
+async function reloadCharts() {
+  if (!currentItemId) return;
+  if (currentTab === 'overview') {
+    await loadOverview(currentItemId);
+  } else {
+    await loadDetail(currentItemId, currentCounty);
+  }
+}
+
+// ══ TAB SWITCHING ══
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-overview').style.display = tab === 'overview' ? 'block' : 'none';
+  document.getElementById('view-detail').style.display   = tab === 'detail'   ? 'block' : 'none';
+  reloadCharts();
+}
+
+// ══ OVERVIEW CHART (national, price line + volume bars) ══
+async function loadOverview(itemId) {
+  const res = await fetch(`/api/prices/${itemId}`);
+  const data = await res.json();
+
+  const onlineWeeks = data.online.map(d => d.week);
+  const volWeeks    = data.voluntary.map(d => d.week);
+  const allWeeks    = [...new Set([...onlineWeeks, ...volWeeks])].sort();
+
+  const onlineMap = Object.fromEntries(data.online.map(d => [d.week, d.avg]));
+  const volMap    = Object.fromEntries(data.voluntary.map(d => [d.week, d.avg]));
+  const volCntMap = Object.fromEntries(data.voluntary.map(d => [d.week, d.count]));
+
+  const onlineVals = allWeeks.map(w => onlineMap[w] ?? null);
+  const volVals    = allWeeks.map(w => volMap[w] ?? null);
+  const volCounts  = allWeeks.map(w => volCntMap[w] ?? 0);
+
+  // Stats
+  const lo = data.online.at(-1);
+  const lv = data.voluntary.at(-1);
+  document.getElementById('stat-online').textContent    = lo ? lo.avg.toLocaleString('ro-RO') + ' RON' : '—';
+  document.getElementById('stat-vol-nat').textContent   = lv ? lv.avg.toLocaleString('ro-RO') + ' RON' : '—';
+  document.getElementById('stat-submissions').textContent = data.voluntary.reduce((s,d) => s + d.count, 0).toLocaleString('ro-RO');
+
+  const ctx = document.getElementById('overviewChart').getContext('2d');
+  if (chartOverview) chartOverview.destroy();
+  chartOverview = buildComboChart(ctx, allWeeks, [
+    { label:'Online / Scraping', data:onlineVals, color:'#3498db', type:'line' },
+    { label:'Voluntar Național', data:volVals, color:'#2ecc71', type:'line' },
+    { label:'Volum contribuții', data:volCounts, color:'rgba(46,204,113,0.35)', type:'bar' },
+  ], currentUnit);
+}
+
+// ══ DETAIL CHARTS (national + county, side by side) ══
+async function loadDetail(itemId, county) {
+  const res = await fetch(`/api/prices/${itemId}/detail?county=${encodeURIComponent(county)}`);
+  const data = await res.json();
+
+  const nat = data.national;
+  const loc = data.county;
+
+  // Stats
+  const lvo = nat.online.at(-1);
+  const lvv = nat.voluntary.at(-1);
+  const lvc = loc.voluntary.at(-1);
+  document.getElementById('stat-online').textContent    = lvo ? lvo.avg.toLocaleString('ro-RO') + ' RON' : '—';
+  document.getElementById('stat-vol-nat').textContent   = lvv ? lvv.avg.toLocaleString('ro-RO') + ' RON' : '—';
+  document.getElementById('stat-vol-county').textContent = lvc ? lvc.avg.toLocaleString('ro-RO') + ' RON' : '—';
+  document.getElementById('stat-submissions').textContent = nat.total_submissions.toLocaleString('ro-RO');
+
+  // Build national weeks
+  const natOnlineW = nat.online.map(d=>d.week);
+  const natVolW    = nat.voluntary.map(d=>d.week);
+  const natWeeks   = [...new Set([...natOnlineW, ...natVolW])].sort();
+  const natOM      = Object.fromEntries(nat.online.map(d=>[d.week,d.avg]));
+  const natVM      = Object.fromEntries(nat.voluntary.map(d=>[d.week,d.avg]));
+  const natVC      = Object.fromEntries(nat.voluntary.map(d=>[d.week,d.count]));
+
+  // Build county weeks
+  const locVolW  = loc.voluntary.map(d=>d.week);
+  const locOW    = loc.online.map(d=>d.week);
+  const locWeeks = [...new Set([...locVolW, ...locOW])].sort();
+  const locOM    = Object.fromEntries(loc.online.map(d=>[d.week,d.avg]));
+  const locVM    = Object.fromEntries(loc.voluntary.map(d=>[d.week,d.avg]));
+  const locVC    = Object.fromEntries(loc.voluntary.map(d=>[d.week,d.count]));
+
+  // National chart
+  const ctxNat = document.getElementById('chartNational').getContext('2d');
+  if (chartNat) chartNat.destroy();
+  chartNat = buildComboChart(ctxNat, natWeeks, [
+    { label:'Online',   data:natWeeks.map(w=>natOM[w]??null), color:'#3498db', type:'line' },
+    { label:'Voluntar', data:natWeeks.map(w=>natVM[w]??null), color:'#2ecc71', type:'line' },
+    { label:'Volum',    data:natWeeks.map(w=>natVC[w]??0),    color:'rgba(52,152,219,0.3)', type:'bar' },
+  ], currentUnit, true);
+
+  // County chart
+  const ctxCo = document.getElementById('chartCounty').getContext('2d');
+  if (chartCounty) chartCounty.destroy();
+
+  if (locWeeks.length === 0) {
+    // No data for this county yet
+    chartCounty = buildEmptyChart(ctxCo, county);
+  } else {
+    chartCounty = buildComboChart(ctxCo, locWeeks, [
+      { label:'Online local',   data:locWeeks.map(w=>locOM[w]??null), color:'#3498db', type:'line' },
+      { label:'Voluntar local', data:locWeeks.map(w=>locVM[w]??null), color:'#2ecc71', type:'line' },
+      { label:'Volum local',    data:locWeeks.map(w=>locVC[w]??0),    color:'rgba(46,204,113,0.35)', type:'bar' },
+    ], currentUnit, true);
+  }
+
+  // Top counties table
+  renderTopCounties(data.top_counties, loc.total_submissions);
+}
+
+// ══ CHART BUILDERS ══
+function buildComboChart(ctx, labels, datasets, unit, compact=false) {
+  return new Chart(ctx, {
+    data: {
+      labels,
+      datasets: datasets.map(ds => ({
+        type: ds.type,
+        label: ds.label,
+        data: ds.data,
+        borderColor: ds.type==='line' ? ds.color : undefined,
+        backgroundColor: ds.type==='bar' ? ds.color : (ds.color + '18'),
+        borderWidth: ds.type==='line' ? 2 : 0,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: ds.type==='line',
+        spanGaps: true,
+        yAxisID: ds.type==='bar' ? 'yCount' : 'yPrice',
+        order: ds.type==='bar' ? 2 : 1,
+        barPercentage: 0.9,
+        categoryPercentage: 1.0,
+      }))
+    },
+    options: {
+      responsive: true,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { display:false },
+        tooltip: {
+          backgroundColor:'#16213e', borderColor:'#0f3460', borderWidth:1,
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.yAxisID === 'yCount')
+                return `${ctx.dataset.label}: ${ctx.parsed.y} contribuții`;
+              return ctx.parsed.y !== null
+                ? `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('ro-RO')} RON / ${unit}`
+                : null;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color:'#8899aa', maxTicksLimit: compact ? 8 : 12, font:{size:10} },
+          grid: { color:'rgba(255,255,255,0.04)' }
+        },
+        yPrice: {
+          type:'linear', position:'left',
+          ticks: { color:'#8899aa', font:{size:10},
+                   callback: v => v.toLocaleString('ro-RO') + ' RON' },
+          grid: { color:'rgba(255,255,255,0.06)' }
+        },
+        yCount: {
+          type:'linear', position:'right',
+          ticks: { color:'rgba(46,204,113,0.5)', font:{size:10},
+                   callback: v => v % 1 === 0 ? v : '' },
+          grid: { drawOnChartArea:false }
+        }
+      }
+    }
+  });
+}
+
+function buildEmptyChart(ctx, county) {
+  return new Chart(ctx, {
+    type:'bar',
+    data:{ labels:[], datasets:[] },
+    options:{
+      plugins:{
+        legend:{display:false},
+        title:{
+          display:true,
+          text:`Nicio contribuție locală pentru "${county}" încă.`,
+          color:'#8899aa', font:{size:13}
+        }
+      },
+      scales:{ x:{display:false}, y:{display:false} }
+    }
+  });
+}
+
+function renderTopCounties(counties, selectedCount) {
+  const tbody = document.getElementById('top-counties-body');
+  if (!counties || !counties.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px">Fără date</td></tr>';
+    return;
+  }
+  const maxCount = Math.max(...counties.map(c => c.count));
+  tbody.innerHTML = counties.map((c, i) => {
+    const barW = Math.round((c.count / maxCount) * 100);
+    const isSelected = c.county === currentCounty;
+    return `<tr style="${isSelected ? 'background:rgba(46,204,113,0.06)' : ''}">
+      <td style="color:var(--muted)">${i+1}</td>
+      <td style="font-weight:${isSelected?'600':'400'};color:${isSelected?'var(--green)':'inherit'}">${c.county}</td>
+      <td>${c.count.toLocaleString('ro-RO')}</td>
+      <td>${c.avg_price.toLocaleString('ro-RO')} RON</td>
+      <td class="bar-cell">
+        <div class="bar-fill" style="width:${barW}%;background:${isSelected?'var(--green)':'rgba(52,152,219,0.5)'}"></div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ══ SUBMIT ══
+async function submitPrice() {
+  const price = parseFloat(document.getElementById('submit-price').value);
+  const county = document.getElementById('submit-county').value;
+  const msgEl = document.getElementById('submit-msg');
+  if (!currentItemId) { showMsg(msgEl,'Selectează un produs mai întâi.','error'); return; }
+  if (!price || price <= 0) { showMsg(msgEl,'Introdu un preț valid.','error'); return; }
+  const res = await fetch('/api/submit',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ item_id:currentItemId, price, county })
+  });
+  const data = await res.json();
+  if (data.success) {
+    showMsg(msgEl,'✅ ' + data.message,'success');
+    document.getElementById('submit-price').value = '';
+    setTimeout(reloadCharts, 1200);
+  } else {
+    showMsg(msgEl,'⚠️ ' + (data.error||'Eroare'),'error');
+  }
+}
+
+// ══ UPLOAD ══
+async function uploadFile() {
+  const fileInput = document.getElementById('upload-file');
+  const county    = document.getElementById('upload-county').value;
+  const spinner   = document.getElementById('upload-spinner');
+  const resultEl  = document.getElementById('upload-result');
+  if (!fileInput.files.length) {
+    resultEl.innerHTML = '<span style="color:var(--red)">Selectează un fișier.</span>';
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('county', county);
+  spinner.style.display = 'block';
+  resultEl.innerHTML = '';
+  const res = await fetch('/api/upload',{method:'POST',body:fd});
+  const data = await res.json();
+  spinner.style.display = 'none';
+  if (data.error) {
+    resultEl.innerHTML = `<span style="color:var(--red);font-size:0.78rem">❌ ${data.error}</span>`;
+  } else {
+    resultEl.innerHTML = `<span style="color:var(--green);font-size:0.78rem">
+      ✅ Importate: <strong>${data.imported}</strong> &nbsp;|&nbsp; Omise: ${data.skipped}
+      ${data.errors?.length ? '<br><span style="color:var(--muted)">' + data.errors.slice(0,3).join(', ') + '</span>' : ''}
+    </span>`;
+  }
+  fileInput.value = '';
+}
+
+// ══ GLOBAL STATS ══
+async function loadGlobalStats() {
+  const res   = await fetch('/api/items');
+  const items = await res.json();
+  document.getElementById('global-stats').innerHTML = `
+    Produse monitorizate: <strong style="color:var(--text)">${items.length}</strong><br>
+    Categorii: <strong style="color:var(--text)">${[...new Set(items.map(i=>i.category))].length}</strong><br>
+    Județe suportate: <strong style="color:var(--text)">41 + București</strong><br>
+    Detecție automată județ: <strong style="color:var(--green)">DA (IP-based)</strong><br>
+    Logare necesară: <strong style="color:var(--green)">NU</strong>
+  `;
+}
+
+// ══ UTIL ══
+function showMsg(el, text, type) {
+  el.textContent = text;
+  el.className = 'msg ' + type;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4500);
+}
+</script>
+</body>
+</html>
