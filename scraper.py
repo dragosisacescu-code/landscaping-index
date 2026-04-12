@@ -1,7 +1,12 @@
 """
-scraper.py — Scraping automat saptamanal de pe 16 surse romanesti.
+scraper.py — Scraping automat saptamanal de pe surse romanesti.
 Ruleaza luni 03:00 prin cron job Render.
 Foloseste acelasi agent AI (parser.py) pentru indexare.
+
+Surse active:
+  - Verdena        (Shopify JSON API — stabil)
+  - SweetGarden    (BeautifulSoup)
+  - OLX            (BeautifulSoup)
 """
 
 import re
@@ -46,6 +51,23 @@ def fetch(url):
             time.sleep(DELAY * (attempt + 1))
         except Exception as e:
             log.warning(f"Eroare fetch {url}: {e}")
+            time.sleep(DELAY)
+    return None
+
+
+def fetch_json(url):
+    """Fetch JSON URL cu retry. Returneaza dict/list sau None."""
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            if r.status_code == 200:
+                return r.json()
+            if r.status_code in (403, 429, 503):
+                log.warning(f"Blocat ({r.status_code}) la {url}")
+                return None
+            time.sleep(DELAY * (attempt + 1))
+        except Exception as e:
+            log.warning(f"Eroare fetch_json {url}: {e}")
             time.sleep(DELAY)
     return None
 
@@ -98,92 +120,40 @@ def process_scraped_item(name, price_raw, source_name, source_url, vat_included=
 
 # ─── SCRAPERE PE SURSE ────────────────────────────────────────────────────────
 
-def scrape_planteo(source_id):
-    """planteo.ro — categorii plante."""
-    base = "https://www.planteo.ro"
-    categories = [
-        "/plante-ornamentale/conifere",
-        "/plante-ornamentale/arbori",
-        "/plante-ornamentale/arbusti",
-        "/gazon",
-    ]
-    count = 0
-    for cat in categories:
-        soup = fetch(base + cat)
-        if not soup:
-            continue
-        for card in soup.select('.product-card, .product-item, [class*="product"]')[:30]:
-            name_el  = card.select_one('[class*="name"], [class*="title"], h2, h3')
-            price_el = card.select_one('[class*="price"], .pret')
-            link_el  = card.select_one('a[href]')
-            if name_el and price_el:
-                url = base + link_el['href'] if link_el else base + cat
-                ok = process_scraped_item(
-                    name_el.get_text(strip=True),
-                    price_el.get_text(strip=True),
-                    'Planteo', url
-                )
-                if ok:
-                    count += 1
-        time.sleep(DELAY)
-    log.info(f"Planteo: {count} produse indexate")
-    db.update_source_status(source_id, datetime.utcnow().isoformat())
-    return count
-
-
-def scrape_robakker(source_id):
-    """robakker.ro — pepiniera online."""
-    base = "https://www.robakker.ro"
-    pages = [
-        "/conifere", "/arbori-ornamentali",
-        "/arbusti-ornamentali", "/plante-acoperitoare",
-    ]
-    count = 0
-    for page in pages:
-        soup = fetch(base + page)
-        if not soup:
-            continue
-        for card in soup.select('.product, .plant-item, [class*="product"]')[:30]:
-            name_el  = card.select_one('h2, h3, .name, [class*="title"]')
-            price_el = card.select_one('.price, [class*="price"], .pret')
-            link_el  = card.select_one('a[href]')
-            if name_el and price_el:
-                url = base + link_el['href'] if link_el else base + page
-                ok = process_scraped_item(
-                    name_el.get_text(strip=True),
-                    price_el.get_text(strip=True),
-                    'Robakker', url
-                )
-                if ok:
-                    count += 1
-        time.sleep(DELAY)
-    log.info(f"Robakker: {count} produse indexate")
-    db.update_source_status(source_id, datetime.utcnow().isoformat())
-    return count
-
-
 def scrape_verdena(source_id):
-    """verdena.ro — plante online."""
-    base = "https://www.verdena.ro"
-    pages = ["/conifere", "/arbori", "/arbusti", "/gazon"]
+    """
+    verdena.ro — magazin Shopify.
+    Folosim JSON API: /collections/{slug}/products.json?limit=250
+    Returneaza date structurate, fara scraping HTML.
+    """
+    base        = "https://verdena.ro"
+    collections = [
+        "conifere",
+        "arbori-ornamentali",
+        "arbusti-ornamentali",
+        "plante-ornamentale",
+        "gazon",
+        "plante-acoperitoare-sol",
+    ]
     count = 0
-    for page in pages:
-        soup = fetch(base + page)
-        if not soup:
+    for col in collections:
+        url  = f"{base}/collections/{col}/products.json?limit=250"
+        data = fetch_json(url)
+        if not data or 'products' not in data:
+            log.debug(f"Verdena/{col}: raspuns gol sau eroare")
+            time.sleep(DELAY)
             continue
-        for card in soup.select('.product-miniature, .product, [class*="product"]')[:30]:
-            name_el  = card.select_one('.product-title, h2, h3, .name')
-            price_el = card.select_one('.price, [class*="price"]')
-            link_el  = card.select_one('a[href]')
-            if name_el and price_el:
-                url = base + link_el['href'] if link_el else base + page
-                ok = process_scraped_item(
-                    name_el.get_text(strip=True),
-                    price_el.get_text(strip=True),
-                    'Verdena', url
-                )
-                if ok:
-                    count += 1
+        for prod in data['products']:
+            title    = prod.get('title', '')
+            handle   = prod.get('handle', '')
+            variants = prod.get('variants', [])
+            if not title or not variants:
+                continue
+            price_str = variants[0].get('price', '')
+            product_url = f"{base}/products/{handle}"
+            ok = process_scraped_item(title, price_str, 'Verdena', product_url)
+            if ok:
+                count += 1
         time.sleep(DELAY)
     log.info(f"Verdena: {count} produse indexate")
     db.update_source_status(source_id, datetime.utcnow().isoformat())
@@ -191,35 +161,63 @@ def scrape_verdena(source_id):
 
 
 def scrape_sweetgarden(source_id):
-    """sweetgarden.ro."""
-    base = "https://www.sweetgarden.ro"
-    soup = fetch(base + "/shop")
-    if not soup:
-        db.update_source_status(source_id, datetime.utcnow().isoformat(), "Blocat")
-        return 0
+    """
+    sweetgarden.ro — magazin plante ornamentale.
+    URL: /plante-ornamentale (categoria principala)
+    Container: .product | Nume: h3 | Pret: .cartPrice
+    """
+    base  = "https://www.sweetgarden.ro"
+    pages = [
+        "/plante-ornamentale",
+        "/conifere",
+        "/arbori-ornamentali",
+        "/arbusti-ornamentali",
+        "/gazon",
+    ]
     count = 0
-    for card in soup.select('.product-item, .woocommerce-product, [class*="product"]')[:40]:
-        name_el  = card.select_one('h2, h3, .woocommerce-loop-product__title')
-        price_el = card.select_one('.price, .woocommerce-Price-amount')
-        link_el  = card.select_one('a[href]')
-        if name_el and price_el:
-            url = link_el['href'] if link_el else base
-            ok = process_scraped_item(
-                name_el.get_text(strip=True),
-                price_el.get_text(strip=True),
-                'SweetGarden', url
-            )
-            if ok:
-                count += 1
+    for page in pages:
+        soup = fetch(base + page)
+        if not soup:
+            time.sleep(DELAY)
+            continue
+        cards = soup.select('.product')
+        log.debug(f"SweetGarden{page}: {len(cards)} carduri gasite")
+        for card in cards[:50]:
+            name_el  = card.select_one('h3')
+            # Incearca .cartPrice, apoi .priceBox, apoi orice element cu 'lei'
+            price_el = card.select_one('.cartPrice, .priceBox, [class*="price"], [class*="Price"]')
+            link_el  = card.select_one('a[href]')
+            if name_el and price_el:
+                href     = link_el['href'] if link_el else page
+                full_url = href if href.startswith('http') else base + href
+                ok = process_scraped_item(
+                    name_el.get_text(strip=True),
+                    price_el.get_text(strip=True),
+                    'SweetGarden', full_url
+                )
+                if ok:
+                    count += 1
+        time.sleep(DELAY)
     log.info(f"SweetGarden: {count} produse indexate")
     db.update_source_status(source_id, datetime.utcnow().isoformat())
     return count
 
 
 def scrape_olx(source_id):
-    """OLX — cautari produse landscaping."""
+    """
+    OLX — cautari produse landscaping.
+    Selectori confirmati: [data-cy="l-card"] / [data-testid="ad-title"] / [data-testid="ad-price"]
+    """
     base  = "https://www.olx.ro"
-    terms = ["conifere", "arbori ornamentali", "gazon rulou", "piatra decorativa"]
+    terms = [
+        "conifere",
+        "arbori ornamentali",
+        "gazon rulou",
+        "piatra decorativa",
+        "arbusti ornamentali",
+        "tuia",
+        "brad ornamental",
+    ]
     count = 0
     for term in terms:
         url  = f"{base}/oferte/q-{term.replace(' ', '-')}/"
@@ -227,12 +225,19 @@ def scrape_olx(source_id):
         if not soup:
             time.sleep(DELAY)
             continue
-        for card in soup.select('[data-cy="l-card"], .offer-wrapper, [class*="listing"]')[:20]:
-            name_el  = card.select_one('h6, h4, [class*="title"]')
-            price_el = card.select_one('[class*="price"], p[class*="price"]')
+        cards = soup.select('[data-cy="l-card"]')
+        log.debug(f"OLX '{term}': {len(cards)} carduri gasite")
+        for card in cards[:20]:
+            name_el  = card.select_one('[data-testid="ad-title"]')
+            price_el = card.select_one('[data-testid="ad-price"]')
             link_el  = card.select_one('a[href]')
+            # Fallback la selectori vechi daca lipsesc
+            if not name_el:
+                name_el = card.select_one('h6, h4, [class*="title"]')
+            if not price_el:
+                price_el = card.select_one('[class*="price"], p')
             if name_el and price_el:
-                href = link_el['href'] if link_el else url
+                href     = link_el['href'] if link_el else url
                 full_url = href if href.startswith('http') else base + href
                 ok = process_scraped_item(
                     name_el.get_text(strip=True),
@@ -248,70 +253,57 @@ def scrape_olx(source_id):
     return count
 
 
-def scrape_emag(source_id):
-    """eMAG — produse gradina."""
-    base  = "https://www.emag.ro"
-    pages = [
-        "/conifere/c",
-        "/arbori-ornamentali/c",
-        "/gazon/c",
-        "/piatra-decorativa/c",
+def scrape_planteo(source_id):
+    """
+    planteo.ro — magazin de plante (Shopify).
+    Folosim JSON API similar cu Verdena.
+    """
+    base        = "https://www.planteo.ro"
+    collections = [
+        "conifere",
+        "arbori",
+        "arbusti",
+        "gazon",
     ]
     count = 0
-    for page in pages:
-        soup = fetch(base + page)
-        if not soup:
+    for col in collections:
+        url  = f"{base}/collections/{col}/products.json?limit=250"
+        data = fetch_json(url)
+        if not data or 'products' not in data:
+            # Fallback HTML daca JSON nu merge
+            soup = fetch(f"{base}/collections/{col}")
+            if not soup:
+                time.sleep(DELAY)
+                continue
+            for card in soup.select('.product-item, [class*="product-card"], .grid__item')[:30]:
+                name_el  = card.select_one('h2, h3, .product-item__title, [class*="title"]')
+                price_el = card.select_one('.price, [class*="price"]')
+                link_el  = card.select_one('a[href]')
+                if name_el and price_el:
+                    href     = link_el['href'] if link_el else f"/collections/{col}"
+                    full_url = href if href.startswith('http') else base + href
+                    ok = process_scraped_item(
+                        name_el.get_text(strip=True),
+                        price_el.get_text(strip=True),
+                        'Planteo', full_url
+                    )
+                    if ok:
+                        count += 1
             time.sleep(DELAY)
             continue
-        for card in soup.select('.card-item, .product-card, [class*="product-card"]')[:20]:
-            name_el  = card.select_one('.card-title, .product-title, h2')
-            price_el = card.select_one('.product-new-price, [class*="price"]')
-            link_el  = card.select_one('a[href]')
-            if name_el and price_el:
-                href = link_el['href'] if link_el else base + page
-                full_url = href if href.startswith('http') else base + href
-                ok = process_scraped_item(
-                    name_el.get_text(strip=True),
-                    price_el.get_text(strip=True),
-                    'eMAG', full_url
-                )
-                if ok:
-                    count += 1
+        for prod in data['products']:
+            title    = prod.get('title', '')
+            handle   = prod.get('handle', '')
+            variants = prod.get('variants', [])
+            if not title or not variants:
+                continue
+            price_str   = variants[0].get('price', '')
+            product_url = f"{base}/products/{handle}"
+            ok = process_scraped_item(title, price_str, 'Planteo', product_url)
+            if ok:
+                count += 1
         time.sleep(DELAY)
-    log.info(f"eMAG: {count} produse indexate")
-    db.update_source_status(source_id, datetime.utcnow().isoformat())
-    return count
-
-
-def scrape_generic(source_id, name, base_url, search_paths):
-    """Scraper generic pentru surse cu structura HTML standard."""
-    count = 0
-    for path in search_paths:
-        soup = fetch(base_url + path)
-        if not soup:
-            time.sleep(DELAY)
-            continue
-        # Incearca selectori comuni
-        for selector in ['.product', '.item', '[class*="product"]', 'article']:
-            cards = soup.select(selector)
-            if cards:
-                for card in cards[:25]:
-                    name_el  = card.select_one('h2, h3, h4, .title, .name, [class*="title"]')
-                    price_el = card.select_one('.price, [class*="price"], .pret, [class*="pret"]')
-                    link_el  = card.select_one('a[href]')
-                    if name_el and price_el:
-                        href = link_el['href'] if link_el else base_url + path
-                        full_url = href if href.startswith('http') else base_url + href
-                        ok = process_scraped_item(
-                            name_el.get_text(strip=True),
-                            price_el.get_text(strip=True),
-                            name, full_url
-                        )
-                        if ok:
-                            count += 1
-                break
-        time.sleep(DELAY)
-    log.info(f"{name}: {count} produse indexate")
+    log.info(f"Planteo: {count} produse indexate")
     db.update_source_status(source_id, datetime.utcnow().isoformat())
     return count
 
@@ -319,19 +311,10 @@ def scrape_generic(source_id, name, base_url, search_paths):
 # ─── ORCHESTRATOR ─────────────────────────────────────────────────────────────
 
 SCRAPERS = {
-    'Planteo':         scrape_planteo,
-    'Robakker':        scrape_robakker,
-    'Verdena':         scrape_verdena,
-    'SweetGarden':     scrape_sweetgarden,
-    'OLX':             scrape_olx,
-    'eMAG':            scrape_emag,
-    # Generic scrapers
-    'Gradina Max':     lambda sid: scrape_generic(sid, 'Gradina Max',     'https://www.gradinamax.ro',      ['/plante', '/conifere', '/arbori']),
-    'Garden Services': lambda sid: scrape_generic(sid, 'Garden Services', 'https://www.gardenservices.ro',  ['/shop', '/produse']),
-    'Parcuri':         lambda sid: scrape_generic(sid, 'Parcuri',         'https://www.parcuri.ro',          ['/plante', '/produse']),
-    'Sieberz':         lambda sid: scrape_generic(sid, 'Sieberz',         'https://www.sieberz.ro',          ['/plante', '/arbori']),
-    'Yurta':           lambda sid: scrape_generic(sid, 'Yurta',           'https://www.yurta.ro',            ['/plante', '/shop']),
-    'Pepiniera Mizil': lambda sid: scrape_generic(sid, 'Pepiniera Mizil', 'https://www.pepinieram.ro',       ['/produse', '/plante']),
+    'Verdena':     scrape_verdena,
+    'SweetGarden': scrape_sweetgarden,
+    'OLX':         scrape_olx,
+    'Planteo':     scrape_planteo,
 }
 
 
@@ -352,7 +335,6 @@ def run_all_scrapers():
 
         scraper_fn = SCRAPERS.get(name)
         if not scraper_fn:
-            # Retaileri mari — de obicei blocati, sarim silentios
             log.info(f"Sarer {name} (nu are scraper implementat sau e blocat)")
             db.update_source_status(src_id, datetime.utcnow().isoformat(), "Fara scraper")
             continue
