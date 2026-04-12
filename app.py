@@ -250,8 +250,10 @@ def upload():
     return jsonify(results)
 
 
-def _add_from_text_and_price(text, price_raw, county, ip_hash, results):
-    """Helper comun pentru procesarea unui rand din orice sursa."""
+def _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=False):
+    """Helper comun pentru procesarea unui rand din orice sursa.
+    bulk=True: sare peste limita 1/saptamana (upload Excel in masa).
+    """
     try:
         price = float(str(price_raw).replace(',', '.').strip())
         if price <= 0:
@@ -268,7 +270,7 @@ def _add_from_text_and_price(text, price_raw, county, ip_hash, results):
         return
 
     item_id, _ = db.get_or_create_item(keys)
-    ok, msg = db.add_voluntary_price(item_id, price, county, ip_hash)
+    ok, msg = db.add_voluntary_price(item_id, price, county, ip_hash, bulk=bulk)
     if ok:
         results['ok'] += 1
     else:
@@ -318,7 +320,7 @@ def _process_excel(file_obj, county, ip_hash, results):
                 text = str(row[0]).strip() if row[0] else ''
                 price_raw = row[1]
                 if text and text.lower() not in ('none', 'nan', '', 'none'):
-                    _add_from_text_and_price(text, price_raw, county, ip_hash, results)
+                    _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=True)
             return
 
         name_col   = _find_col(header, HEADER_KEYWORDS)
@@ -376,7 +378,7 @@ def _process_excel(file_obj, county, ip_hash, results):
             # (ex: "CONIFERE LA BALOT DE PAMANT" → balot)
             text_for_ai = ' '.join(desc_parts)
 
-            _add_from_text_and_price(text_for_ai, price_val, county, ip_hash, results)
+            _add_from_text_and_price(text_for_ai, price_val, county, ip_hash, results, bulk=True)
 
     except Exception as e:
         results['errors'].append(f'Eroare Excel: {str(e)[:150]}')
