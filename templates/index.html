@@ -222,7 +222,7 @@
       <div class="lbl">Prețuri Indexate</div>
     </div>
     <div class="hero-stat">
-      <div class="num" id="hero-items">{{ categories.values() | sum(attribute='__len__') if categories else 0 }}</div>
+      <div class="num" id="hero-items">{{ categories.values() | map('length') | sum if categories else 0 }}</div>
       <div class="lbl">Produse în Catalog</div>
     </div>
     <div class="hero-stat">
@@ -287,7 +287,7 @@
         <div class="legend-item"><div class="legend-dot" style="background:var(--blue-lt)"></div> Prețuri Online (medie)</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--green-lt)"></div> Prețuri Voluntare (medie)</div>
         <div class="legend-item"><div class="legend-dot" style="background:#e8eaed;border:1px solid var(--border)"></div> Bandă Min–Max Online</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--orange);opacity:.5"></div> Volum Contribuții</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--orange);opacity:.5"></div> Volum Contribv��ii</div>
       </div>
       <div class="chart-wrap">
         <canvas id="chart-national"></canvas>
@@ -313,7 +313,7 @@
       <table class="county-table" id="county-table">
         <thead>
           <tr>
-            <th>#</th><th>Județ</th><th>Contribuții</th><th>Distribuție</th><th>Preț Mediu</th>
+            <th>#</th><th>Județ</th><th>Contribv��ii</th><th>Distribv��ie</th><th>Preț Mediu</th>
           </tr>
         </thead>
         <tbody id="county-tbody">
