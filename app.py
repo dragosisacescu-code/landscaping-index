@@ -250,16 +250,42 @@ def upload():
     return jsonify(results)
 
 
+def _parse_price_float(price_raw):
+    """Parseaza pret in format romanesc/european (ex: '1.200,00', '45,50', '45.50').
+    Returneaza float sau None."""
+    import re as _re
+    s = str(price_raw).strip()
+    # Elimina text moneda si spatii
+    s = _re.sub(r'(?i)\s*(ron|lei|euro|eur)\s*', '', s)
+    s = _re.sub(r'\s', '', s)
+    # Pastreaza doar cifre, virgula, punct
+    s = _re.sub(r'[^\d,.]', '', s)
+    if not s:
+        return None
+    # Detecteaza formatul
+    if ',' in s and '.' in s:
+        # Determina care e separator mii si care e separator zecimal
+        if s.rfind(',') > s.rfind('.'):
+            # Format european: 1.200,50
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            # Format US: 1,200.50
+            s = s.replace(',', '')
+    elif ',' in s:
+        # Virgula ca separator zecimal: 45,50
+        s = s.replace(',', '.')
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
 def _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=False):
     """Helper comun pentru procesarea unui rand din orice sursa.
     bulk=True: sare peste limita 1/saptamana (upload Excel in masa).
     """
-    try:
-        price = float(str(price_raw).replace(',', '.').strip())
-        if price <= 0:
-            results['skipped'] += 1
-            return
-    except (ValueError, TypeError):
+    price = _parse_price_float(price_raw)
+    if price is None or price <= 0:
         results['skipped'] += 1
         return
 
@@ -465,14 +491,17 @@ def _process_pdf(file_obj, county, ip_hash, results):
                             if not name_val or name_val.lower() in ('none', 'nan'):
                                 continue
 
-                            # Sare titlurile de sectiune
-                            if any(sw in name_val.lower() for sw in SECTION_WORDS):
-                                continue
-
                             price_val = (row[price_col]
                                          if (price_col is not None and price_col < len(row))
                                          else None)
+                            # Normalizeaza price_val: None sau string gol = fara pret
+                            if price_val is not None and str(price_val).strip() in ('', 'None', 'none'):
+                                price_val = None
+
                             if price_val is None:
+                                # Sare titlurile de sectiune (fara pret = probabil header categorie)
+                                if any(sw in name_val.lower() for sw in SECTION_WORDS):
+                                    continue
                                 results['skipped'] += 1
                                 continue
 
