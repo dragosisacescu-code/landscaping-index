@@ -396,32 +396,111 @@ def _process_pdf(file_obj, county, ip_hash, results):
     if not HAS_PDF:
         results['errors'].append('pdfplumber nu este instalat')
         return
+
+    HEADER_KEYWORDS = ['denumire', 'produs', 'species', 'name', 'item',
+                       'planta', 'plant', 'description']
+    PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei', 'tarif', 'euro']
+    HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)']
+    DIAM_KEYWORDS   = ['diam', 'diametru', 'diameter', 'circumferinta', 'circ']
+    SECTION_WORDS   = ['total', 'subtotal', 'oferta', 'categorie', 'section', 'grupa',
+                       'conifere', 'arbusti', 'arbori', 'plante', 'gazon', 'materiale']
+
     try:
+        import re
         content = file_obj.read()
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             for page in pdf.pages:
-                # Incearca tabele
                 tables = page.extract_tables()
                 if tables:
                     for table in tables:
-                        for row in table:
-                            if not row or len(row) < 2:
+                        if not table:
+                            continue
+
+                        # ── Cauta header-ul dinamic (ca la Excel) ────────────
+                        header_row_idx = None
+                        header = []
+                        for i, row in enumerate(table):
+                            row_str = [str(c).lower().strip() if c else '' for c in row]
+                            if (_find_col(row_str, HEADER_KEYWORDS) is not None and
+                                    _find_col(row_str, PRICE_KEYWORDS) is not None):
+                                header_row_idx = i
+                                header = row_str
+                                break
+
+                        if header_row_idx is None:
+                            # Fallback: col0=text, col1=pret
+                            for row in table:
+                                if not row or len(row) < 2:
+                                    continue
+                                text = str(row[0]).strip() if row[0] else ''
+                                price_raw = row[1] if len(row) > 1 else None
+                                if text and text.lower() not in ('none', 'nan', ''):
+                                    _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=True)
+                            continue
+
+                        name_col   = _find_col(header, HEADER_KEYWORDS)
+                        height_col = _find_col(header, HEIGHT_KEYWORDS)
+                        diam_col   = _find_col(header, DIAM_KEYWORDS)
+
+                        # Prefer PRET UNITAR (fara TVA / fara total)
+                        price_col = None
+                        for i, h in enumerate(header):
+                            if 'pret' in h and 'tva' not in h and 'total' not in h:
+                                price_col = i
+                                break
+                        if price_col is None:
+                            price_col = _find_col(header, PRICE_KEYWORDS)
+
+                        data_rows = table[header_row_idx + 1:]
+                        for row in data_rows:
+                            if not row:
                                 continue
-                            text = str(row[0]).strip() if row[0] else ''
-                            price_raw = row[1] if len(row) > 1 else None
-                            if text:
-                                _add_from_text_and_price(text, price_raw, county, ip_hash, results)
+                            non_empty = [c for c in row if c is not None and str(c).strip() not in ('', 'None')]
+                            if len(non_empty) < 2:
+                                continue
+
+                            name_val = (str(row[name_col]).strip()
+                                        if (name_col is not None and name_col < len(row) and row[name_col])
+                                        else '')
+                            if not name_val or name_val.lower() in ('none', 'nan'):
+                                continue
+
+                            # Sare titlurile de sectiune
+                            if any(sw in name_val.lower() for sw in SECTION_WORDS):
+                                continue
+
+                            price_val = (row[price_col]
+                                         if (price_col is not None and price_col < len(row))
+                                         else None)
+                            if price_val is None:
+                                results['skipped'] += 1
+                                continue
+
+                            # Construieste descriere bogata (denumire + inaltime + diametru)
+                            desc_parts = [name_val]
+                            if height_col is not None and height_col < len(row) and row[height_col]:
+                                h = str(row[height_col]).strip()
+                                if h and h.lower() not in ('none', '0', ''):
+                                    desc_parts.append(f"{h}cm")
+                            if diam_col is not None and diam_col < len(row) and row[diam_col]:
+                                d = str(row[diam_col]).strip()
+                                if d and d.lower() not in ('none', '0', ''):
+                                    desc_parts.append(f"diam {d}cm")
+
+                            _add_from_text_and_price(
+                                ' '.join(desc_parts), price_val,
+                                county, ip_hash, results, bulk=True
+                            )
                 else:
-                    # Text liber — cauta linii cu preturi
+                    # Text liber — cauta linii cu preturi (fallback)
                     text = page.extract_text() or ''
                     for line in text.splitlines():
-                        import re
                         m = re.search(r'(.+?)\s+(\d[\d\s,.]+)\s*(?:ron|lei|RON|Lei)?', line)
                         if m:
                             _add_from_text_and_price(
                                 m.group(1).strip(),
                                 m.group(2).strip(),
-                                county, ip_hash, results
+                                county, ip_hash, results, bulk=True
                             )
     except Exception as e:
         results['errors'].append(f'Eroare PDF: {str(e)[:100]}')
