@@ -6,7 +6,7 @@ Acelasi flux pentru input manual, scraping si upload fisiere.
 import os
 import json
 
-# ─── BUCKETS FIXE ─────────────────────────────────────────────────────────────
+# ── BUCKETS FIXE ────────────────────────────────────────────────────────────
 
 HEIGHT_BUCKETS = [
     (0, 50), (50, 100), (100, 150), (150, 200),
@@ -67,7 +67,7 @@ def trimmed_mean(prices):
     4-9   → eliminam 1 min + 1 max
     10-19 → eliminam 2 min + 2 max
     20-29 → eliminam 4 min + 4 max
-    30+   → continuam logic (+2 de fiecare parte la fiecare 10 preturi)
+    30+ → continuam logic (+2 de fiecare parte la fiecare 10 preturi)
     """
     if not prices:
         return None
@@ -179,8 +179,8 @@ def build_item_keys(parsed):
 
     return {
         'species':          species,
-        'category':         parsed.get('category', 'Necunoscut'),
-        'unit':             parsed.get('unit', 'buc'),
+        'category':         parsed.get('category') or 'Necunoscut',
+        'unit':             parsed.get('unit') or 'buc',
         'height_bucket':    height_bucket,
         'diameter_bucket':  diameter_bucket,
         'circ_bucket':      circ_bucket,
