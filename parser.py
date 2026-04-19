@@ -89,62 +89,80 @@ def trimmed_mean(prices):
     return round(sum(trimmed) / len(trimmed), 2)
 
 
+_ITEM_SCHEMA = """{
+  "species": "numele normalizat (ex: Thuja Occidentalis, Gazonare, Substrat turba)",
+  "category": "Conifere / Arbori / Arbusti / Plante_taratoare / Gazon / Materiale / Piatra / Manopera / Necunoscut",
+  "unit": "buc / mp / ml / tona / ora / zi / proiect",
+  "height_min_cm": intreg sau null,
+  "height_max_cm": intreg sau null,
+  "root_type": "CLT" sau "balot" sau "radacina_nuda" sau null,
+  "clt_size": "5L / 10L / 25L / 45L / etc" sau null,
+  "diameter_min_cm": intreg sau null,
+  "diameter_max_cm": intreg sau null,
+  "circumference_min_cm": intreg sau null,
+  "circumference_max_cm": intreg sau null,
+  "vat_included": true / false / null
+}"""
+
+_RULES = """Reguli categorii:
+- Conifere: thuja, picea, pinus, juniperus, chamaecyparis, taxus, abies, cedrus
+- Arbori: arbori foiosi ornamentali, stejar, mesteacan, artar, frasin, tei, paltin, betula, acer, liriodendron, liquidambar, aesculus, prunus, koelreuteria, albizia, cercis, sophora, amelanchier, carpinus, ulmus, platanus, pyrus, quercus, robinia
+- Arbusti: arbusti ornamentali, trandafir, forsythia, spiraea, ligustrum, buxus, berberis, lagerstroemia, cornus, deutzia, euonymus, lonicera, weigela, photinia, magnolia, viburnum, cotinus, sambucus, tamarix
+- Plante_taratoare: ivy, vinca, cotoneaster orizontal, hedera, juniperus horizontalis
+- Gazon: gazon rulou, gazon samanta, gazon sport
+- Materiale: substrat, turba, cocos, ingrasamant, geotextil, folie iaz, mulci, scoarta
+- Piatra: piatra cubica, pietris, nisip, granit, marmura, pavaj, bordura
+- Manopera: gazonare, plantare, tuns, amenajare, design, irigatii, cosit, tarif ora
+- Necunoscut: altceva
+
+Reguli: m→cm (1.5m=150cm) | C5/C10/C25=CLT | balot/b&b=balot | rn=radacina_nuda | circ=circumferinta trunchi | fara TVA/+TVA→false | cu TVA→true | altfel→null"""
+
+
 def parse_with_claude(text):
     """
     Parseaza descriere libera folosind Claude Haiku API.
     Returneaza (parsed_dict, error_string).
     """
+    results = parse_batch_with_claude([text])
+    if results and results[0] is not None:
+        return results[0], None
+    return None, "Parsare esuata"
+
+
+def parse_batch_with_claude(texts):
+    """
+    Parseaza o lista de descrieri intr-un singur apel API.
+    Returneaza lista de parsed_dict (None pentru esecuri individuale).
+    BATCH_SIZE items per apel → reduce dramatic numarul de apeluri API.
+    """
+    if not texts:
+        return []
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
 
+        numbered = '\n'.join(f'{i+1}. "{t}"' for i, t in enumerate(texts))
         prompt = f"""Esti expert in horticultura si landscaping din Romania.
-Analizeaza descrierea si extrage datele structurate.
+Analizeaza fiecare descriere si extrage datele structurate.
 
-Descriere: "{text}"
+Descrieri:
+{numbered}
 
-Returneaza STRICT JSON valid, fara alte cuvinte:
-{{
-  "species": "numele normalizat al speciei SAU tipul de serviciu/material (ex: Thuja Occidentalis, Gazonare, Plantare copac, Tuns gard viu, Piatra cubica, Substrat turba)",
-  "category": "Conifere / Arbori / Arbusti / Plante_taratoare / Gazon / Materiale / Piatra / Manopera / Necunoscut",
-  "unit": "buc / mp / ml / tona / ora / zi / proiect",
-  "height_min_cm": numar intreg cm sau null,
-  "height_max_cm": numar intreg cm sau null,
-  "root_type": "CLT" sau "balot" sau "radacina_nuda" sau null,
-  "clt_size": "5L / 10L / 25L / 45L / etc" sau null,
-  "diameter_min_cm": numar intreg cm sau null,
-  "diameter_max_cm": numar intreg cm sau null,
-  "circumference_min_cm": numar intreg cm sau null,
-  "circumference_max_cm": numar intreg cm sau null,
-  "vat_included": true sau false sau null
-}}
+Schema pentru fiecare item:
+{_ITEM_SCHEMA}
 
-Reguli categorii:
-- Conifere: thuja, picea, pinus, juniperus, chamaecyparis, taxus, abies, cedrus etc.
-- Arbori: arbori foiosi ornamentali, stejar, mesteacan, artar, frasin, tei, paltin etc.
-- Arbusti: arbusti ornamentali, trandafir, forsythia, spiraea, ligustrum, buxus etc.
-- Plante_taratoare: ivy, vinca, cotoneaster orizontal, hedera etc.
-- Gazon: gazon rulou, gazon samanta, gazon sport, gazon umbra etc.
-- Materiale: substrat, turba, cocos, ingrasamant, geotextil, folie iaz, mulci, scoarta etc.
-- Piatra: piatra cubica, pietris, nisip, granit, marmura, gresie, bordura, pavaj, roca decorativa etc.
-- Manopera: gazonare, plantare, tuns (gard viu / iarba / arbori), amenajare gradina, design peisagistic, irigatii montaj, cosit, sapare, fertilizare, tratamente fitosanitare, curatenie gradina, tarif ora muncitor, transport material verde etc.
-- Necunoscut: altceva
+{_RULES}
 
-Reguli generale:
-- Converteste m in cm (1.5m = 150cm)
-- C5 / C10 / C25 / C45 sau ghiveci = root_type CLT
-- "balot", "b&b", "bulgare" = root_type balot
-- "radacina nuda", "rn" = root_type radacina_nuda
-- Circumferinta = masurare trunchi la 1m inaltime (cir/circ/circumf)
-- Pentru Manopera: unit = mp (suprafata), ml (liniar), buc (per bucata/copac), ora, zi
-- Daca apare "fara TVA", "+TVA" → vat_included: false
-- Daca apare "cu TVA", "incl TVA" → vat_included: true
-- Altfel → vat_included: null
-- Raspunde DOAR cu JSON"""
+Returneaza STRICT un array JSON valid cu exact {len(texts)} obiecte, in ordinea descrierilor, fara alte cuvinte:
+[
+  {{ obiect pentru descrierea 1 }},
+  {{ obiect pentru descrierea 2 }},
+  ...
+]"""
 
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=400,
+            max_tokens=300 * len(texts),
             messages=[{"role": "user", "content": prompt}]
         )
         raw = msg.content[0].text.strip()
@@ -152,10 +170,15 @@ Reguli generale:
             raw = raw.split('```')[1]
             if raw.startswith('json'):
                 raw = raw[4:]
-        return json.loads(raw.strip()), None
-
+        results = json.loads(raw.strip())
+        if isinstance(results, list):
+            # Pad/trim la lungimea corecta
+            while len(results) < len(texts):
+                results.append(None)
+            return results[:len(texts)]
+        return [None] * len(texts)
     except Exception as e:
-        return None, str(e)
+        return [None] * len(texts)
 
 
 def build_item_keys(parsed):
