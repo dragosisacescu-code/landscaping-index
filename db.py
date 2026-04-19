@@ -1,105 +1,104 @@
 """
-db.py — Schema SQLite si toate operatiunile CRUD.
+db.py — Schema PostgreSQL si toate operatiunile CRUD.
 Include logica anti-manipulare si indexarea ierarhica pe 3 niveluri.
 """
 
 import os
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import hashlib
 from datetime import datetime, timedelta
 from parser import trimmed_mean
 
-DB_PATH = os.path.join(os.environ.get('DB_DIR', '.'), 'landscaping.db')
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 # ─── CONEXIUNE ────────────────────────────────────────────────────────────────
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
+
+def _cur(conn):
+    """Cursor care returneaza randuri ca dictionare."""
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 # ─── INITIALIZARE SCHEMA ──────────────────────────────────────────────────────
 
 def init_db():
     conn = get_db()
-    c = conn.cursor()
+    c = _cur(conn)
 
-    c.executescript("""
-    CREATE TABLE IF NOT EXISTS items (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        species         TEXT NOT NULL,
-        category        TEXT NOT NULL DEFAULT 'Necunoscut',
-        unit            TEXT NOT NULL DEFAULT 'buc',
-        height_bucket   TEXT,
-        diameter_bucket TEXT,
-        circ_bucket     TEXT,
-        root_type       TEXT,
-        clt_size        TEXT,
-        canonical_key   TEXT UNIQUE NOT NULL,
-        level1_key      TEXT NOT NULL,
-        level2_key      TEXT NOT NULL,
-        display_name    TEXT NOT NULL,
-        created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS prices_voluntary (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        item_id     INTEGER NOT NULL REFERENCES items(id),
-        price       REAL NOT NULL,
-        county      TEXT,
-        ip_hash     TEXT NOT NULL,
-        week_number INTEGER NOT NULL,
-        year        INTEGER NOT NULL,
-        created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS prices_online (
-        id           INTEGER PRIMARY KEY AUTOINCREMENT,
-        item_id      INTEGER NOT NULL REFERENCES items(id),
-        price_min    REAL NOT NULL,
-        price_max    REAL NOT NULL,
-        price_avg    REAL NOT NULL,
-        source_name  TEXT,
-        source_url   TEXT,
-        week_number  INTEGER NOT NULL,
-        year         INTEGER NOT NULL,
-        created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS ip_violations (
-        id             INTEGER PRIMARY KEY AUTOINCREMENT,
-        ip_hash        TEXT NOT NULL,
-        item_id        INTEGER NOT NULL REFERENCES items(id),
-        violation_count INTEGER NOT NULL DEFAULT 0,
-        banned_until   TEXT,
-        last_price     REAL,
-        updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
-        UNIQUE(ip_hash, item_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS scraping_sources (
-        id           INTEGER PRIMARY KEY AUTOINCREMENT,
-        name         TEXT NOT NULL,
-        base_url     TEXT NOT NULL,
-        active       INTEGER NOT NULL DEFAULT 1,
-        last_scraped TEXT,
-        last_error   TEXT
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_prices_vol_item  ON prices_voluntary(item_id);
-    CREATE INDEX IF NOT EXISTS idx_prices_vol_week  ON prices_voluntary(week_number, year);
-    CREATE INDEX IF NOT EXISTS idx_prices_vol_ip    ON prices_voluntary(ip_hash);
-    CREATE INDEX IF NOT EXISTS idx_prices_onl_item  ON prices_online(item_id);
-    CREATE INDEX IF NOT EXISTS idx_items_level1     ON items(level1_key);
-    CREATE INDEX IF NOT EXISTS idx_items_level2     ON items(level2_key);
-    CREATE INDEX IF NOT EXISTS idx_violations_ip    ON ip_violations(ip_hash, item_id);
-    """)
+    for stmt in [
+        """CREATE TABLE IF NOT EXISTS items (
+            id              SERIAL PRIMARY KEY,
+            species         TEXT NOT NULL,
+            category        TEXT NOT NULL DEFAULT 'Necunoscut',
+            unit            TEXT NOT NULL DEFAULT 'buc',
+            height_bucket   TEXT,
+            diameter_bucket TEXT,
+            circ_bucket     TEXT,
+            root_type       TEXT,
+            clt_size        TEXT,
+            canonical_key   TEXT UNIQUE NOT NULL,
+            level1_key      TEXT NOT NULL,
+            level2_key      TEXT NOT NULL,
+            display_name    TEXT NOT NULL,
+            created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS prices_voluntary (
+            id          SERIAL PRIMARY KEY,
+            item_id     INTEGER NOT NULL REFERENCES items(id),
+            price       REAL NOT NULL,
+            county      TEXT,
+            ip_hash     TEXT NOT NULL,
+            week_number INTEGER NOT NULL,
+            year        INTEGER NOT NULL,
+            created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS prices_online (
+            id           SERIAL PRIMARY KEY,
+            item_id      INTEGER NOT NULL REFERENCES items(id),
+            price_min    REAL NOT NULL,
+            price_max    REAL NOT NULL,
+            price_avg    REAL NOT NULL,
+            source_name  TEXT,
+            source_url   TEXT,
+            week_number  INTEGER NOT NULL,
+            year         INTEGER NOT NULL,
+            created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS ip_violations (
+            id              SERIAL PRIMARY KEY,
+            ip_hash         TEXT NOT NULL,
+            item_id         INTEGER NOT NULL REFERENCES items(id),
+            violation_count INTEGER NOT NULL DEFAULT 0,
+            banned_until    TIMESTAMP,
+            last_price      REAL,
+            updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+            UNIQUE(ip_hash, item_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS scraping_sources (
+            id           SERIAL PRIMARY KEY,
+            name         TEXT NOT NULL,
+            base_url     TEXT NOT NULL,
+            active       INTEGER NOT NULL DEFAULT 1,
+            last_scraped TIMESTAMP,
+            last_error   TEXT
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_prices_vol_item ON prices_voluntary(item_id)",
+        "CREATE INDEX IF NOT EXISTS idx_prices_vol_week ON prices_voluntary(week_number, year)",
+        "CREATE INDEX IF NOT EXISTS idx_prices_vol_ip   ON prices_voluntary(ip_hash)",
+        "CREATE INDEX IF NOT EXISTS idx_prices_onl_item ON prices_online(item_id)",
+        "CREATE INDEX IF NOT EXISTS idx_items_level1    ON items(level1_key)",
+        "CREATE INDEX IF NOT EXISTS idx_items_level2    ON items(level2_key)",
+        "CREATE INDEX IF NOT EXISTS idx_violations_ip   ON ip_violations(ip_hash, item_id)",
+    ]:
+        c.execute(stmt)
 
     # Populeaza surse daca nu exista
-    existing = c.execute("SELECT COUNT(*) FROM scraping_sources").fetchone()[0]
-    if existing == 0:
+    c.execute("SELECT COUNT(*) as cnt FROM scraping_sources")
+    if c.fetchone()['cnt'] == 0:
         sources = [
             ('Hornbach',        'https://www.hornbach.ro'),
             ('Dedeman',         'https://www.dedeman.ro'),
@@ -119,7 +118,7 @@ def init_db():
             ('Pepiniera Mizil', 'https://www.pepinieram.ro'),
         ]
         c.executemany(
-            "INSERT INTO scraping_sources (name, base_url) VALUES (?, ?)",
+            "INSERT INTO scraping_sources (name, base_url) VALUES (%s, %s)",
             sources
         )
 
@@ -146,11 +145,12 @@ def get_or_create_item(keys):
     Daca nu exista, il creeaza si returneaza id-ul.
     """
     conn = get_db()
-    c = conn.cursor()
-    row = c.execute(
-        "SELECT id FROM items WHERE canonical_key = ?",
+    c = _cur(conn)
+    c.execute(
+        "SELECT id FROM items WHERE canonical_key = %s",
         (keys['canonical_key'],)
-    ).fetchone()
+    )
+    row = c.fetchone()
 
     if row:
         conn.close()
@@ -161,14 +161,15 @@ def get_or_create_item(keys):
             (species, category, unit, height_bucket, diameter_bucket,
              circ_bucket, root_type, clt_size, canonical_key,
              level1_key, level2_key, display_name)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        RETURNING id
     """, (
         keys['species'], keys['category'], keys['unit'],
         keys['height_bucket'], keys['diameter_bucket'], keys['circ_bucket'],
         keys['root_type'], keys['clt_size'], keys['canonical_key'],
         keys['level1_key'], keys['level2_key'], keys['display_name']
     ))
-    item_id = c.lastrowid
+    item_id = c.fetchone()['id']
     conn.commit()
     conn.close()
     return item_id, True
@@ -176,19 +177,20 @@ def get_or_create_item(keys):
 
 def get_all_items():
     conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM items ORDER BY category, species, height_bucket"
-    ).fetchall()
+    c = _cur(conn)
+    c.execute("SELECT * FROM items ORDER BY category, species, height_bucket")
+    rows = c.fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 def delete_item(item_id):
     conn = get_db()
-    conn.execute("DELETE FROM prices_voluntary WHERE item_id = ?", (item_id,))
-    conn.execute("DELETE FROM prices_online WHERE item_id = ?", (item_id,))
-    conn.execute("DELETE FROM ip_violations WHERE item_id = ?", (item_id,))
-    conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+    c = _cur(conn)
+    c.execute("DELETE FROM prices_voluntary WHERE item_id = %s", (item_id,))
+    c.execute("DELETE FROM prices_online WHERE item_id = %s", (item_id,))
+    c.execute("DELETE FROM ip_violations WHERE item_id = %s", (item_id,))
+    c.execute("DELETE FROM items WHERE id = %s", (item_id,))
     conn.commit()
     conn.close()
 
@@ -199,46 +201,40 @@ def check_manipulation(ip_hash, item_id, new_price):
     """
     Verifica daca submiterea respecta regulile anti-manipulare.
     Returneaza (ok: bool, message: str).
-
-    Reguli:
-    - Prima abatere:        ±10% fata de ultimul pret al aceluiasi IP
-    - Abaterile urmatoare:  ±5%
-    - A 3-a abatere:        ban 30 zile
-    - Deblocare anticipata: minim 20 preturi confirma noul pret (±10%)
     """
     conn = get_db()
-    c = conn.cursor()
+    c = _cur(conn)
 
-    row = c.execute(
-        "SELECT * FROM ip_violations WHERE ip_hash = ? AND item_id = ?",
+    c.execute(
+        "SELECT * FROM ip_violations WHERE ip_hash = %s AND item_id = %s",
         (ip_hash, item_id)
-    ).fetchone()
+    )
+    row = c.fetchone()
 
     # Verifica ban activ
     if row and row['banned_until']:
-        banned_until = datetime.fromisoformat(row['banned_until'])
-        if datetime.utcnow() < banned_until:
+        banned_until_dt = row['banned_until']  # psycopg2 returneaza datetime direct
+        if datetime.utcnow() < banned_until_dt:
             # Verifica deblocare prin 20 confirmari
-            all_prices = c.execute(
-                "SELECT price FROM prices_voluntary WHERE item_id = ?",
+            c.execute(
+                "SELECT price FROM prices_voluntary WHERE item_id = %s",
                 (item_id,)
-            ).fetchall()
-            prices_list = [r['price'] for r in all_prices]
+            )
+            prices_list = [r['price'] for r in c.fetchall()]
             if len(prices_list) >= 20:
                 close = [p for p in prices_list if abs(p - new_price) / new_price <= 0.10]
                 if len(close) >= 20:
-                    # Deblocam
                     c.execute(
-                        "UPDATE ip_violations SET banned_until=NULL, violation_count=0 WHERE ip_hash=? AND item_id=?",
+                        "UPDATE ip_violations SET banned_until=NULL, violation_count=0 WHERE ip_hash=%s AND item_id=%s",
                         (ip_hash, item_id)
                     )
                     conn.commit()
                 else:
-                    days_left = (banned_until - datetime.utcnow()).days + 1
+                    days_left = (banned_until_dt - datetime.utcnow()).days + 1
                     conn.close()
                     return False, f"Esti blocat {days_left} zile. Piata nu a confirmat inca pretul tau."
             else:
-                days_left = (banned_until - datetime.utcnow()).days + 1
+                days_left = (banned_until_dt - datetime.utcnow()).days + 1
                 conn.close()
                 return False, f"Esti blocat {days_left} zile din cauza variatiilor prea mari."
 
@@ -259,14 +255,14 @@ def check_manipulation(ip_hash, item_id, new_price):
     # Abatere detectata
     new_violations = violations + 1
     if new_violations >= 3:
-        banned_until = (datetime.utcnow() + timedelta(days=30)).isoformat()
+        banned_until = datetime.utcnow() + timedelta(days=30)
         c.execute("""
             INSERT INTO ip_violations (ip_hash, item_id, violation_count, banned_until, last_price)
-            VALUES (?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s)
             ON CONFLICT(ip_hash, item_id) DO UPDATE SET
-                violation_count=excluded.violation_count,
-                banned_until=excluded.banned_until,
-                updated_at=datetime('now')
+                violation_count=EXCLUDED.violation_count,
+                banned_until=EXCLUDED.banned_until,
+                updated_at=NOW()
         """, (ip_hash, item_id, new_violations, banned_until, last_price))
         conn.commit()
         conn.close()
@@ -274,10 +270,10 @@ def check_manipulation(ip_hash, item_id, new_price):
 
     c.execute("""
         INSERT INTO ip_violations (ip_hash, item_id, violation_count, last_price)
-        VALUES (?,?,?,?)
+        VALUES (%s,%s,%s,%s)
         ON CONFLICT(ip_hash, item_id) DO UPDATE SET
-            violation_count=excluded.violation_count,
-            updated_at=datetime('now')
+            violation_count=EXCLUDED.violation_count,
+            updated_at=NOW()
     """, (ip_hash, item_id, new_violations, last_price))
     conn.commit()
     conn.close()
@@ -297,21 +293,19 @@ def add_voluntary_price(item_id, price, county, ip_hash, bulk=False):
     """
     Adauga un pret voluntar dupa validarea regulii 1/saptamana/IP
     si a regulii anti-manipulare.
-    bulk=True: sare peste limita 1/saptamana (folosit la upload Excel in masa).
+    bulk=True: sare peste limita 1/saptamana.
     Returneaza (ok: bool, message: str).
     """
     week, year = current_week()
     conn = get_db()
-    c = conn.cursor()
+    c = _cur(conn)
 
     if not bulk:
-        # Regula 1 actiune / item / saptamana / IP
-        existing = c.execute("""
+        c.execute("""
             SELECT id FROM prices_voluntary
-            WHERE item_id=? AND ip_hash=? AND week_number=? AND year=?
-        """, (item_id, ip_hash, week, year)).fetchone()
-
-        if existing:
+            WHERE item_id=%s AND ip_hash=%s AND week_number=%s AND year=%s
+        """, (item_id, ip_hash, week, year))
+        if c.fetchone():
             conn.close()
             return False, "Ai contribuit deja pentru acest produs saptamana aceasta."
 
@@ -324,19 +318,19 @@ def add_voluntary_price(item_id, price, county, ip_hash, bulk=False):
 
     # Salveaza pretul
     conn = get_db()
-    c = conn.cursor()
+    c = _cur(conn)
     c.execute("""
         INSERT INTO prices_voluntary (item_id, price, county, ip_hash, week_number, year)
-        VALUES (?,?,?,?,?,?)
+        VALUES (%s,%s,%s,%s,%s,%s)
     """, (item_id, price, county, ip_hash, week, year))
 
     # Actualizeaza last_price in violations
     c.execute("""
         INSERT INTO ip_violations (ip_hash, item_id, violation_count, last_price)
-        VALUES (?,?,0,?)
+        VALUES (%s,%s,0,%s)
         ON CONFLICT(ip_hash, item_id) DO UPDATE SET
-            last_price=excluded.last_price,
-            updated_at=datetime('now')
+            last_price=EXCLUDED.last_price,
+            updated_at=NOW()
     """, (ip_hash, item_id, price))
 
     conn.commit()
@@ -347,31 +341,30 @@ def add_voluntary_price(item_id, price, county, ip_hash, bulk=False):
 def get_voluntary_prices_for_chart(level1_key, county=None):
     """
     Returneaza saptamanal media trunchiata pentru grafic.
-    level: 'national' sau judet specific.
     """
     conn = get_db()
-    c = conn.cursor()
+    c = _cur(conn)
 
     if county and county != 'national':
-        rows = c.execute("""
+        c.execute("""
             SELECT pv.week_number, pv.year, pv.price
             FROM prices_voluntary pv
             JOIN items i ON i.id = pv.item_id
-            WHERE i.level1_key = ? AND pv.county = ?
+            WHERE i.level1_key = %s AND pv.county = %s
             ORDER BY pv.year, pv.week_number
-        """, (level1_key, county)).fetchall()
+        """, (level1_key, county))
     else:
-        rows = c.execute("""
+        c.execute("""
             SELECT pv.week_number, pv.year, pv.price
             FROM prices_voluntary pv
             JOIN items i ON i.id = pv.item_id
-            WHERE i.level1_key = ?
+            WHERE i.level1_key = %s
             ORDER BY pv.year, pv.week_number
-        """, (level1_key,)).fetchall()
+        """, (level1_key,))
 
+    rows = c.fetchall()
     conn.close()
 
-    # Grupeaza pe saptamana
     weeks = {}
     for r in rows:
         key = f"{r['year']}-W{r['week_number']:02d}"
@@ -388,29 +381,29 @@ def get_voluntary_prices_for_chart(level1_key, county=None):
 def add_online_price(item_id, price_min, price_max, price_avg, source_name, source_url):
     week, year = current_week()
     conn = get_db()
-    conn.execute("""
+    c = _cur(conn)
+    c.execute("""
         INSERT INTO prices_online
             (item_id, price_min, price_max, price_avg, source_name, source_url, week_number, year)
-        VALUES (?,?,?,?,?,?,?,?)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
     """, (item_id, price_min, price_max, price_avg, source_name, source_url, week, year))
     conn.commit()
     conn.close()
 
 
 def get_online_prices_for_chart(level1_key):
-    """
-    Returneaza saptamanal min/max/medie din toate sursele.
-    """
     conn = get_db()
-    rows = conn.execute("""
+    c = _cur(conn)
+    c.execute("""
         SELECT po.week_number, po.year,
                po.price_min, po.price_max, po.price_avg,
                po.source_name, po.source_url
         FROM prices_online po
         JOIN items i ON i.id = po.item_id
-        WHERE i.level1_key = ?
+        WHERE i.level1_key = %s
         ORDER BY po.year, po.week_number
-    """, (level1_key,)).fetchall()
+    """, (level1_key,))
+    rows = c.fetchall()
     conn.close()
 
     weeks = {}
@@ -433,12 +426,12 @@ def get_online_prices_for_chart(level1_key):
     result = []
     for k, v in sorted(weeks.items()):
         result.append({
-            'label':    k,
-            'price':    trimmed_mean(v['avgs']),
-            'min':      min(v['mins']),
-            'max':      max(v['maxs']),
-            'sources':  v['sources'],
-            'count':    len(v['avgs']),
+            'label':   k,
+            'price':   trimmed_mean(v['avgs']),
+            'min':     min(v['mins']),
+            'max':     max(v['maxs']),
+            'sources': v['sources'],
+            'count':   len(v['avgs']),
         })
     return result
 
@@ -447,24 +440,28 @@ def get_online_prices_for_chart(level1_key):
 
 def get_total_prices_count():
     conn = get_db()
-    vol = conn.execute("SELECT COUNT(*) FROM prices_voluntary").fetchone()[0]
-    onl = conn.execute("SELECT COUNT(*) FROM prices_online").fetchone()[0]
+    c = _cur(conn)
+    c.execute("SELECT COUNT(*) as cnt FROM prices_voluntary")
+    vol = c.fetchone()['cnt']
+    c.execute("SELECT COUNT(*) as cnt FROM prices_online")
+    onl = c.fetchone()['cnt']
     conn.close()
     return vol + onl
 
 
 def get_county_stats(item_level1_key):
-    """Top judete dupa numar de contributii pentru un item."""
     conn = get_db()
-    rows = conn.execute("""
+    c = _cur(conn)
+    c.execute("""
         SELECT pv.county, COUNT(*) as cnt, AVG(pv.price) as avg_price
         FROM prices_voluntary pv
         JOIN items i ON i.id = pv.item_id
-        WHERE i.level1_key = ? AND pv.county IS NOT NULL
+        WHERE i.level1_key = %s AND pv.county IS NOT NULL
         GROUP BY pv.county
         ORDER BY cnt DESC
         LIMIT 10
-    """, (item_level1_key,)).fetchall()
+    """, (item_level1_key,))
+    rows = c.fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -473,17 +470,19 @@ def get_county_stats(item_level1_key):
 
 def delete_price(price_id, source='voluntary'):
     conn = get_db()
+    c = _cur(conn)
     table = 'prices_voluntary' if source == 'voluntary' else 'prices_online'
-    conn.execute(f"DELETE FROM {table} WHERE id = ?", (price_id,))
+    c.execute(f"DELETE FROM {table} WHERE id = %s", (price_id,))
     conn.commit()
     conn.close()
 
 
 def delete_prices_for_week(item_id, week_number, year, source='voluntary'):
     conn = get_db()
+    c = _cur(conn)
     table = 'prices_voluntary' if source == 'voluntary' else 'prices_online'
-    conn.execute(
-        f"DELETE FROM {table} WHERE item_id=? AND week_number=? AND year=?",
+    c.execute(
+        f"DELETE FROM {table} WHERE item_id=%s AND week_number=%s AND year=%s",
         (item_id, week_number, year)
     )
     conn.commit()
@@ -492,23 +491,26 @@ def delete_prices_for_week(item_id, week_number, year, source='voluntary'):
 
 def get_banned_ips():
     conn = get_db()
-    rows = conn.execute("""
+    c = _cur(conn)
+    c.execute("""
         SELECT iv.ip_hash, iv.violation_count, iv.banned_until, iv.updated_at,
                i.display_name as item_name
         FROM ip_violations iv
         JOIN items i ON i.id = iv.item_id
         WHERE iv.banned_until IS NOT NULL
-          AND iv.banned_until > datetime('now')
+          AND iv.banned_until > NOW()
         ORDER BY iv.updated_at DESC
-    """).fetchall()
+    """)
+    rows = c.fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 def unban_ip(ip_hash, item_id):
     conn = get_db()
-    conn.execute(
-        "UPDATE ip_violations SET banned_until=NULL, violation_count=0 WHERE ip_hash=? AND item_id=?",
+    c = _cur(conn)
+    c.execute(
+        "UPDATE ip_violations SET banned_until=NULL, violation_count=0 WHERE ip_hash=%s AND item_id=%s",
         (ip_hash, item_id)
     )
     conn.commit()
@@ -517,21 +519,24 @@ def unban_ip(ip_hash, item_id):
 
 def get_scraping_sources():
     conn = get_db()
-    rows = conn.execute("SELECT * FROM scraping_sources ORDER BY name").fetchall()
+    c = _cur(conn)
+    c.execute("SELECT * FROM scraping_sources ORDER BY name")
+    rows = c.fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 def update_source_status(source_id, last_scraped=None, last_error=None):
     conn = get_db()
+    c = _cur(conn)
     if last_error:
-        conn.execute(
-            "UPDATE scraping_sources SET last_scraped=?, last_error=? WHERE id=?",
+        c.execute(
+            "UPDATE scraping_sources SET last_scraped=%s, last_error=%s WHERE id=%s",
             (last_scraped, last_error, source_id)
         )
     else:
-        conn.execute(
-            "UPDATE scraping_sources SET last_scraped=?, last_error=NULL WHERE id=?",
+        c.execute(
+            "UPDATE scraping_sources SET last_scraped=%s, last_error=NULL WHERE id=%s",
             (last_scraped, source_id)
         )
     conn.commit()
