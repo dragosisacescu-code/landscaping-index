@@ -96,8 +96,8 @@ def admin_required(f):
 @app.route('/')
 def index():
     total = db.get_total_prices_count()
+    item_count, cat_count = db.get_catalog_stats()
     items = db.get_all_items()
-    # Grupeaza pe categorie
     categories = {}
     for item in items:
         cat = item['category']
@@ -105,6 +105,8 @@ def index():
     return render_template(
         'index.html',
         total_prices=total,
+        item_count=item_count,
+        cat_count=cat_count,
         categories=categories,
         counties=COUNTIES,
     )
@@ -332,20 +334,29 @@ def _process_excel(file_obj, county, ip_hash, results):
         if not rows:
             return
 
-        # ── Cauta header-ul dinamic (poate fi pe orice rand) ──────────────────
-        # Suporta formate ca "Oferta plante Silva Periland" unde header-ul
-        # e pe randul 10-11, nu pe primul rand.
         HEADER_KEYWORDS = ['denumire', 'produs', 'species', 'name', 'item',
                            'planta', 'plant', 'description']
-        PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei',
-                           'tarif', 'euro']
-        HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)']
-        DIAM_KEYWORDS   = ['diam', 'ø', 'cm', 'diametru', 'diameter']
+        PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei', 'tarif', 'euro']
+        HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)', 'inaltime (cm)']
+        DIAM_KEYWORDS   = ['diam', 'ø', 'diametru', 'diameter', 'circumferinta', 'circ']
+        SECTION_WORDS   = ['total', 'subtotal', 'oferta', 'categorie', 'section', 'grupa']
+        CATEGORY_MAP    = {
+            'conifer': 'conifer', 'molid': 'conifer', 'brad': 'conifer',
+            'thuja': 'conifer', 'picea': 'conifer', 'arbusti': 'arbust',
+            'arbori': 'arbore', 'gazon': 'gazon', 'plante': 'planta',
+        }
 
         header_row_idx = None
         header = []
+        current_section = ''
+
         for i, row in enumerate(rows):
             row_str = [str(c).lower().strip() if c else '' for c in row]
+            row_text = ' '.join(row_str)
+            for kw, cat in CATEGORY_MAP.items():
+                if kw in row_text:
+                    current_section = cat
+                    break
             if (_find_col(row_str, HEADER_KEYWORDS) is not None and
                     _find_col(row_str, PRICE_KEYWORDS) is not None):
                 header_row_idx = i
@@ -353,61 +364,71 @@ def _process_excel(file_obj, county, ip_hash, results):
                 break
 
         if header_row_idx is None:
-            # Fallback: incearca primele 2 coloane
-            results['warnings'].append(
-                'Nu am gasit header standard. Incerc primele 2 coloane (col1=produs, col2=pret).'
-            )
+            results['warnings'].append('Nu am gasit header standard. Incerc primele 2 coloane.')
             for row in rows:
                 if not row or len(row) < 2:
                     continue
                 text = str(row[0]).strip() if row[0] else ''
                 price_raw = row[1]
-                if text and text.lower() not in ('none', 'nan', '', 'none'):
+                if text and text.lower() not in ('none', 'nan', ''):
                     _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=True)
             return
 
         name_col   = _find_col(header, HEADER_KEYWORDS)
-        price_col  = _find_col(header, PRICE_KEYWORDS)
         height_col = _find_col(header, HEIGHT_KEYWORDS)
         diam_col   = _find_col(header, DIAM_KEYWORDS)
 
-        # Detecteaza si coloana tip radacina (balot, clt etc.)
-        root_col = _find_col(header, ['balot', 'clt', 'radacina', 'tip', 'root'])
+        # Detecteaza coloana denumire romana (a doua coloana cu 'denumire')
+        roman_col = None
+        for i, h in enumerate(header):
+            if i != name_col and ('romana' in h or ('denumire' in h and i != name_col)):
+                roman_col = i
+                break
 
-        # Cuvinte care indica un rand de sectiune (titlu categorie) - de sarit
-        SECTION_WORDS = [
-            'conifere', 'arbusti', 'arbori', 'plante', 'gazon', 'materiale',
-            'total', 'subtotal', 'oferta', 'categoria', 'section', 'grupa'
-        ]
+        # Prefer PRET UNITAR fara TVA / fara total
+        price_col = None
+        for i, h in enumerate(header):
+            if 'pret' in h and 'tva' not in h and 'total' not in h:
+                price_col = i
+                break
+        if price_col is None:
+            price_col = _find_col(header, PRICE_KEYWORDS)
 
         data_rows = rows[header_row_idx + 1:]
 
         for row in data_rows:
             if not row:
                 continue
-
-            # Ignora randuri goale sau cu prea putine coloane
             non_empty = [c for c in row if c is not None and str(c).strip() not in ('', 'None')]
             if len(non_empty) < 2:
                 continue
 
-            # Ignora randuri de sectiune (au text in prima coloana dar fara pret)
             name_val = str(row[name_col]).strip() if (name_col is not None and row[name_col]) else ''
             if not name_val or name_val.lower() in ('none', 'nan'):
                 continue
 
-            # Detecteaza rand de sectiune: text lung fara pret
+            # Sare titluri de sectiune; actualizeaza contextul
+            if any(sw in name_val.lower() for sw in SECTION_WORDS):
+                for kw, cat in CATEGORY_MAP.items():
+                    if kw in name_val.lower():
+                        current_section = cat
+                        break
+                continue
+
             price_val = row[price_col] if price_col is not None else None
+            if price_val is not None and str(price_val).strip() in ('', 'None', 'none', '0'):
+                price_val = None
             if price_val is None:
-                # Verifica daca e titlu de sectiune
-                if any(sw in name_val.lower() for sw in SECTION_WORDS):
-                    continue
                 results['skipped'] += 1
                 continue
 
-            # Construieste descriere bogata pentru agent AI
-            # Adauga inaltimea si diametrul daca exista — ajuta parsarea
-            desc_parts = [name_val]
+            # Descriere bogata: [romana] + latina + inaltime + diam + [sectiune]
+            desc_parts = []
+            if roman_col is not None and row[roman_col]:
+                roman_val = str(row[roman_col]).strip()
+                if roman_val and roman_val.lower() not in ('none', 'nan', ''):
+                    desc_parts.append(roman_val)
+            desc_parts.append(name_val)
             if height_col is not None and row[height_col]:
                 h = str(row[height_col]).strip()
                 if h and h.lower() not in ('none', '0', ''):
@@ -415,13 +436,11 @@ def _process_excel(file_obj, county, ip_hash, results):
             if diam_col is not None and row[diam_col]:
                 d = str(row[diam_col]).strip()
                 if d and d.lower() not in ('none', '0', ''):
-                    desc_parts.append(f"diam {d}cm")
+                    desc_parts.append(f"circ {d}cm")
+            if current_section:
+                desc_parts.append(current_section)
 
-            # Detecteaza tipul radacinii din randul de sectiune anterior
-            # (ex: "CONIFERE LA BALOT DE PAMANT" → balot)
-            text_for_ai = ' '.join(desc_parts)
-
-            _add_from_text_and_price(text_for_ai, price_val, county, ip_hash, results, bulk=True)
+            _add_from_text_and_price(' '.join(desc_parts), price_val, county, ip_hash, results, bulk=True)
 
     except Exception as e:
         results['errors'].append(f'Eroare Excel: {str(e)[:150]}')
@@ -443,113 +462,158 @@ def _process_pdf(file_obj, county, ip_hash, results):
     HEADER_KEYWORDS = ['denumire', 'produs', 'species', 'name', 'item',
                        'planta', 'plant', 'description']
     PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei', 'tarif', 'euro']
-    HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)']
+    HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)', 'inaltime (cm)']
     DIAM_KEYWORDS   = ['diam', 'diametru', 'diameter', 'circumferinta', 'circ']
-    SECTION_WORDS   = ['total', 'subtotal', 'oferta', 'categorie', 'section', 'grupa',
-                       'conifere', 'arbusti', 'arbori', 'plante', 'gazon', 'materiale']
+    # Cuvinte care identifica randuri de sectiune / total (de sarit)
+    SECTION_WORDS   = ['total', 'subtotal', 'oferta', 'categorie', 'section', 'grupa']
+    # Categorii care dau context de sectiune
+    CATEGORY_MAP    = {
+        'conifer': 'conifer', 'molid': 'conifer', 'brad': 'conifer',
+        'thuja': 'conifer', 'pin ': 'conifer', 'picea': 'conifer',
+        'arbusti': 'arbust', 'arbust': 'arbust',
+        'arbori': 'arbore', 'arbore': 'arbore',
+        'gazon': 'gazon', 'plante': 'planta',
+    }
 
     try:
         import re
         content = file_obj.read()
+        current_section = ''   # context de sectiune detectat din titluri
+
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             for page in pdf.pages:
                 tables = page.extract_tables()
-                if tables:
-                    for table in tables:
-                        if not table:
-                            continue
-
-                        # ── Cauta header-ul dinamic (ca la Excel) ────────────
-                        header_row_idx = None
-                        header = []
-                        for i, row in enumerate(table):
-                            row_str = [str(c).lower().strip() if c else '' for c in row]
-                            if (_find_col(row_str, HEADER_KEYWORDS) is not None and
-                                    _find_col(row_str, PRICE_KEYWORDS) is not None):
-                                header_row_idx = i
-                                header = row_str
-                                break
-
-                        if header_row_idx is None:
-                            # Fallback: col0=text, col1=pret
-                            for row in table:
-                                if not row or len(row) < 2:
-                                    continue
-                                text = str(row[0]).strip() if row[0] else ''
-                                price_raw = row[1] if len(row) > 1 else None
-                                if text and text.lower() not in ('none', 'nan', ''):
-                                    _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=True)
-                            continue
-
-                        name_col   = _find_col(header, HEADER_KEYWORDS)
-                        height_col = _find_col(header, HEIGHT_KEYWORDS)
-                        diam_col   = _find_col(header, DIAM_KEYWORDS)
-
-                        # Prefer PRET UNITAR (fara TVA / fara total)
-                        price_col = None
-                        for i, h in enumerate(header):
-                            if 'pret' in h and 'tva' not in h and 'total' not in h:
-                                price_col = i
-                                break
-                        if price_col is None:
-                            price_col = _find_col(header, PRICE_KEYWORDS)
-
-                        data_rows = table[header_row_idx + 1:]
-                        for row in data_rows:
-                            if not row:
-                                continue
-                            non_empty = [c for c in row if c is not None and str(c).strip() not in ('', 'None')]
-                            if len(non_empty) < 2:
-                                continue
-
-                            name_val = (str(row[name_col]).strip()
-                                        if (name_col is not None and name_col < len(row) and row[name_col])
-                                        else '')
-                            if not name_val or name_val.lower() in ('none', 'nan'):
-                                continue
-
-                            price_val = (row[price_col]
-                                         if (price_col is not None and price_col < len(row))
-                                         else None)
-                            # Normalizeaza price_val: None sau string gol = fara pret
-                            if price_val is not None and str(price_val).strip() in ('', 'None', 'none'):
-                                price_val = None
-
-                            if price_val is None:
-                                # Sare titlurile de sectiune (fara pret = probabil header categorie)
-                                if any(sw in name_val.lower() for sw in SECTION_WORDS):
-                                    continue
-                                results['skipped'] += 1
-                                continue
-
-                            # Construieste descriere bogata (denumire + inaltime + diametru)
-                            desc_parts = [name_val]
-                            if height_col is not None and height_col < len(row) and row[height_col]:
-                                h = str(row[height_col]).strip()
-                                if h and h.lower() not in ('none', '0', ''):
-                                    desc_parts.append(f"{h}cm")
-                            if diam_col is not None and diam_col < len(row) and row[diam_col]:
-                                d = str(row[diam_col]).strip()
-                                if d and d.lower() not in ('none', '0', ''):
-                                    desc_parts.append(f"diam {d}cm")
-
-                            _add_from_text_and_price(
-                                ' '.join(desc_parts), price_val,
-                                county, ip_hash, results, bulk=True
-                            )
-                else:
-                    # Text liber — cauta linii cu preturi (fallback)
+                if not tables:
+                    # Text liber — fallback
                     text = page.extract_text() or ''
                     for line in text.splitlines():
                         m = re.search(r'(.+?)\s+(\d[\d\s,.]+)\s*(?:ron|lei|RON|Lei)?', line)
                         if m:
                             _add_from_text_and_price(
-                                m.group(1).strip(),
-                                m.group(2).strip(),
+                                m.group(1).strip(), m.group(2).strip(),
                                 county, ip_hash, results, bulk=True
                             )
+                    continue
+
+                for table in tables:
+                    if not table:
+                        continue
+
+                    # ── Cauta header-ul dinamic ───────────────────────────────
+                    header_row_idx = None
+                    header = []
+                    for i, row in enumerate(table):
+                        row_str = [str(c).lower().strip() if c else '' for c in row]
+                        # Detecteaza titlu sectiune (ex: "OFERTA CONIFERE LA BALOT")
+                        row_text = ' '.join(row_str)
+                        for kw, cat in CATEGORY_MAP.items():
+                            if kw in row_text:
+                                current_section = cat
+                                break
+                        if (_find_col(row_str, HEADER_KEYWORDS) is not None and
+                                _find_col(row_str, PRICE_KEYWORDS) is not None):
+                            header_row_idx = i
+                            header = row_str
+                            break
+
+                    if header_row_idx is None:
+                        # Fallback: col0=text, col1=pret
+                        for row in table:
+                            if not row or len(row) < 2:
+                                continue
+                            text = str(row[0]).strip() if row[0] else ''
+                            price_raw = row[1] if len(row) > 1 else None
+                            if text and text.lower() not in ('none', 'nan', ''):
+                                _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=True)
+                        continue
+
+                    name_col   = _find_col(header, HEADER_KEYWORDS)
+                    height_col = _find_col(header, HEIGHT_KEYWORDS)
+                    diam_col   = _find_col(header, DIAM_KEYWORDS)
+
+                    # Detecteaza coloana cu denumire romana (a doua coloana cu 'denumire')
+                    roman_col = None
+                    for i, h in enumerate(header):
+                        if i != name_col and ('romana' in h or ('denumire' in h and i != name_col)):
+                            roman_col = i
+                            break
+
+                    # Prefer PRET UNITAR fara TVA si fara total
+                    price_col = None
+                    for i, h in enumerate(header):
+                        if 'pret' in h and 'tva' not in h and 'total' not in h:
+                            price_col = i
+                            break
+                    if price_col is None:
+                        price_col = _find_col(header, PRICE_KEYWORDS)
+
+                    # Detecteaza BUC/cantitate col pentru a o ignora in pret
+                    buc_col = next((i for i, h in enumerate(header) if h in ('buc', 'cant', 'bucati', 'qty')), None)
+
+                    data_rows = table[header_row_idx + 1:]
+                    for row in data_rows:
+                        if not row:
+                            continue
+                        non_empty = [c for c in row if c is not None and str(c).strip() not in ('', 'None')]
+                        if len(non_empty) < 2:
+                            continue
+
+                        name_val = (str(row[name_col]).strip()
+                                    if (name_col is not None and name_col < len(row) and row[name_col])
+                                    else '')
+                        if not name_val or name_val.lower() in ('none', 'nan'):
+                            continue
+
+                        # Sare randuri de sectiune / total
+                        if any(sw in name_val.lower() for sw in SECTION_WORDS):
+                            # Actualizeaza sectiunea curenta
+                            for kw, cat in CATEGORY_MAP.items():
+                                if kw in name_val.lower():
+                                    current_section = cat
+                                    break
+                            continue
+
+                        price_val = (row[price_col]
+                                     if (price_col is not None and price_col < len(row))
+                                     else None)
+                        if price_val is not None and str(price_val).strip() in ('', 'None', 'none', '0'):
+                            price_val = None
+                        if price_val is None:
+                            results['skipped'] += 1
+                            continue
+
+                        # Construieste descriere bogata:
+                        # [denumire_romana] + denumire_latina + inaltime + circumferinta + [sectiune]
+                        desc_parts = []
+
+                        # Adauga denumirea romana (ajuta AI sa categoriseasca)
+                        if roman_col is not None and roman_col < len(row) and row[roman_col]:
+                            roman_val = str(row[roman_col]).strip()
+                            if roman_val and roman_val.lower() not in ('none', 'nan', ''):
+                                desc_parts.append(roman_val)
+
+                        desc_parts.append(name_val)
+
+                        if height_col is not None and height_col < len(row) and row[height_col]:
+                            h = str(row[height_col]).strip()
+                            if h and h.lower() not in ('none', '0', ''):
+                                desc_parts.append(f"{h}cm")
+
+                        if diam_col is not None and diam_col < len(row) and row[diam_col]:
+                            d = str(row[diam_col]).strip()
+                            if d and d.lower() not in ('none', '0', ''):
+                                desc_parts.append(f"circ {d}cm")
+
+                        # Adauga contextul de sectiune ca hint pentru parser
+                        if current_section:
+                            desc_parts.append(current_section)
+
+                        _add_from_text_and_price(
+                            ' '.join(desc_parts), price_val,
+                            county, ip_hash, results, bulk=True
+                        )
     except Exception as e:
-        results['errors'].append(f'Eroare PDF: {str(e)[:100]}')
+        results['errors'].append(f'Eroare PDF: {str(e)[:150]}')
 
 
 def _process_image(file_obj, county, ip_hash, results):
@@ -559,17 +623,53 @@ def _process_image(file_obj, county, ip_hash, results):
     try:
         import re
         img  = Image.open(file_obj)
-        text = pytesseract.image_to_string(img, lang='ron+eng')
-        for line in text.splitlines():
-            m = re.search(r'(.+?)\s+(\d[\d\s,.]+)\s*(?:ron|lei|RON|Lei)?', line)
+        # Incearca cu romana si engleza; fallback la engleza
+        try:
+            text = pytesseract.image_to_string(img, lang='ron+eng')
+        except Exception:
+            text = pytesseract.image_to_string(img, lang='eng')
+
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        current_section = ''
+        CATEGORY_MAP = {
+            'conifer': 'conifer', 'molid': 'conifer', 'brad': 'conifer',
+            'thuja': 'conifer', 'picea': 'conifer', 'arbusti': 'arbust',
+            'arbori': 'arbore', 'gazon': 'gazon',
+        }
+
+        for line in lines:
+            line_low = line.lower()
+            # Detecteaza titlu sectiune
+            for kw, cat in CATEGORY_MAP.items():
+                if kw in line_low:
+                    current_section = cat
+                    break
+
+            # Pattern: "text cu planta    145.00" sau "text cu planta 145,00 RON"
+            # Cauta pretul la finalul liniei
+            m = re.search(
+                r'^(.+?)\s{2,}(\d[\d\s,.]{0,15})\s*(?:ron|lei|RON|Lei)?\s*$',
+                line
+            )
+            if not m:
+                # Fallback: orice numar de cel putin 2 cifre la sfarsit
+                m = re.search(r'^(.{5,}?)\s+(\d{2,}[.,]?\d*)\s*(?:ron|lei)?$', line, re.IGNORECASE)
             if m:
-                _add_from_text_and_price(
-                    m.group(1).strip(),
-                    m.group(2).strip(),
-                    county, ip_hash, results
-                )
+                name_part  = m.group(1).strip()
+                price_part = m.group(2).strip()
+                # Sare linii evidente de header / total
+                if any(w in name_part.lower() for w in ['total', 'subtotal', 'denumire', 'pret', 'oferta']):
+                    continue
+                desc = name_part
+                if current_section:
+                    desc = desc + ' ' + current_section
+                _add_from_text_and_price(desc, price_part, county, ip_hash, results)
+
         if results['ok'] == 0 and results['skipped'] == 0:
-            results['warnings'].append('Nu am putut extrage date din imagine. Verifica calitatea.')
+            results['warnings'].append(
+                'Nu am putut extrage date din imagine. '
+                'Recomandare: exporta ca PDF sau Excel pentru rezultate mai bune.'
+            )
     except Exception as e:
         results['errors'].append(f'Eroare OCR: {str(e)[:100]}')
 
