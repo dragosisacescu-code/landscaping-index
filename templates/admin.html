@@ -304,7 +304,7 @@
           <td>
             <form method="post" action="/admin/ips/unban" style="display:inline;">
               <input type="hidden" name="ip_hash" value="{{ ip.ip_hash }}">
-              <input type="hidden" name="item_id" value="">
+              <input type="hidden" name="item_id" value="{{ ip.item_id }}">
               <button class="btn btn-sm" type="submit">🔓 Deblochează</button>
             </form>
           </td>
