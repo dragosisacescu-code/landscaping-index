@@ -76,10 +76,26 @@ def ensure_db():
 
 # ─── UTILITARE ────────────────────────────────────────────────────────────────
 
+# Pagini excluse din analytics (statice, API, admin)
+_SKIP_VISIT = ('/static/', '/api/', '/admin', '/favicon')
+
+
 def get_client_ip():
     if request.headers.get('X-Forwarded-For'):
         return request.headers['X-Forwarded-For'].split(',')[0].strip()
     return request.remote_addr or '0.0.0.0'
+
+
+# Fix track_visit to use get_client_ip (defined below)
+@app.before_request
+def _track_visit_real():
+    path = request.path
+    if any(path.startswith(p) for p in _SKIP_VISIT):
+        return
+    if request.method != 'GET':
+        return
+    ip = get_client_ip()
+    db.log_visit(db.hash_ip(ip), path)
 
 
 def admin_required(f):
@@ -859,6 +875,16 @@ def admin_toggle_source(source_id):
         conn.commit()
     conn.close()
     return redirect(url_for('admin_scraping'))
+
+
+# ─── ADMIN: VIZITATORI ───────────────────────────────────────────────────────
+
+@app.route('/admin/visits')
+@admin_required
+def admin_visits():
+    stats = db.get_visit_stats()
+    return render_template('admin.html', visit_stats=stats, section='visits',
+                           items=[], banned_ips=[], sources=[], total_prices=0)
 
 
 # ─── CRON ENDPOINT (Render) ───────────────────────────────────────────────────
