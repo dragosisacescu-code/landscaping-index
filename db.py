@@ -107,6 +107,14 @@ def init_db():
     ]:
         c.execute(stmt)
 
+    # ── MIGRARI DATE ─────────────────────────────────────────────────────────────
+    # Carpinus e arbore foios, nu conifer (bug substring 'pinus' in 'carpinus')
+    c.execute("""
+        UPDATE items SET category='Arbori'
+        WHERE LOWER(species) LIKE 'carpinus%' AND category='Conifere'
+    """)
+    conn.commit()
+
     # Populeaza / actualizeaza surse (INSERT ignore duplicat pe base_url)
     sources = [
         # ── MAGAZINE BRICOLAJ / RETAIL ──────────────────────────────────────
