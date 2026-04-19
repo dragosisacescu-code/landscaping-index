@@ -326,6 +326,21 @@ let selectedVar   = null;   // { sp_key, display }
 let selectedRow   = null;   // canonical_key
 let priceChart    = null;
 let previewTimer  = null;
+let currentLabel  = '';     // titlu panou activ
+
+// ── COLLECT SP_KEYS FROM SUBTREE ─────────────────────────────────────────────
+function getSpKeys(subtree) {
+  const keys = new Set();
+  function collect(node) {
+    if (Array.isArray(node)) {
+      node.forEach(i => { if (i.sp_key) keys.add(i.sp_key); });
+    } else if (node && typeof node === 'object') {
+      Object.values(node).forEach(collect);
+    }
+  }
+  collect(subtree);
+  return [...keys];
+}
 
 // ── ICONS PER CATEGORY ───────────────────────────────────────────────────────
 const CAT_ICON = {
@@ -356,12 +371,17 @@ function renderCascade() {
     const isCatOpen = openNodes.cat === cat;
     const catEl = mkItem(CAT_ICON[cat] || '🌿', cat, isCatOpen, isCatOpen);
     catEl.onclick = () => {
+      const opening = !isCatOpen;
       openNodes = isCatOpen
         ? { cat: null, genus: null, species: null }
         : { cat, genus: null, species: null };
       selectedVar = null;
       renderCascade();
-      showEmptyState();
+      if (opening) {
+        const keys = getSpKeys(treeData[cat]);
+        if (keys.length) loadPriceMatrix(keys.join(','), cat, null);
+        else showEmptyState();
+      } else showEmptyState();
     };
     root.appendChild(catEl);
 
@@ -373,12 +393,21 @@ function renderCascade() {
       const genusEl = mkItem('•', genus, isGenusOpen, isGenusOpen);
       genusEl.onclick = (e) => {
         e.stopPropagation();
+        const opening = !isGenusOpen;
         openNodes = isGenusOpen
           ? { cat, genus: null, species: null }
           : { cat, genus, species: null };
         selectedVar = null;
         renderCascade();
-        showEmptyState();
+        if (opening) {
+          const keys = getSpKeys(treeData[cat][genus]);
+          if (keys.length) loadPriceMatrix(keys.join(','), genus, cat);
+          else showEmptyState();
+        } else {
+          const keys = getSpKeys(treeData[cat]);
+          if (keys.length) loadPriceMatrix(keys.join(','), cat, null);
+          else showEmptyState();
+        }
       };
       genusWrap.appendChild(genusEl);
 
@@ -390,12 +419,21 @@ function renderCascade() {
         const spEl = mkItem('◦', sp, isSpOpen, isSpOpen);
         spEl.onclick = (e) => {
           e.stopPropagation();
+          const opening = !isSpOpen;
           openNodes = isSpOpen
             ? { cat, genus, species: null }
             : { cat, genus, species: sp };
           selectedVar = null;
           renderCascade();
-          showEmptyState();
+          if (opening) {
+            const keys = getSpKeys(treeData[cat][genus][sp]);
+            if (keys.length) loadPriceMatrix(keys.join(','), sp, genus);
+            else showEmptyState();
+          } else {
+            const keys = getSpKeys(treeData[cat][genus]);
+            if (keys.length) loadPriceMatrix(keys.join(','), genus, cat);
+            else showEmptyState();
+          }
         };
         speciesWrap.appendChild(spEl);
 
@@ -446,76 +484,80 @@ function mkChildren() {
 }
 
 // ── LOAD PRICE MATRIX ────────────────────────────────────────────────────────
-async function loadPriceMatrix(sp_key, varName, speciesName) {
+async function loadPriceMatrix(keys, label, parentLabel) {
+  currentLabel = label;
   const panel = document.getElementById('price-main-card');
   panel.innerHTML = `<div style="color:var(--text-sec);padding:20px;">⏳ Se încarcă prețurile...</div>`;
-
+  // firstKey = primul key, folosit pentru graficul de evolutie
+  const firstKey = keys.split(',')[0];
   try {
-    const res = await fetch(`/api/price-matrix?key=${encodeURIComponent(sp_key)}`);
+    const res = await fetch(`/api/price-matrix?key=${encodeURIComponent(keys)}`);
     const data = await res.json();
-    renderPriceTable(data, varName, speciesName, sp_key);
+    renderPriceTable(data, label, parentLabel, firstKey);
   } catch(e) {
     panel.innerHTML = `<div style="color:#c0392b;padding:20px;">❌ Eroare la încărcarea prețurilor.</div>`;
   }
 }
 
 // ── RENDER PRICE TABLE ───────────────────────────────────────────────────────
-function renderPriceTable(rows, varName, speciesName, sp_key) {
+function renderPriceTable(rows, label, parentLabel, firstKey) {
   const panel = document.getElementById('price-main-card');
 
-  const hasData = rows.length > 0;
-  const title   = varName === '(specie)' ? speciesName : `${speciesName} ${varName}`;
+  const hasData    = rows.length > 0;
+  const multiSp    = hasData && new Set(rows.map(r => r.species)).size > 1;
+  const breadIcon  = selectedVar ? (CAT_ICON[selectedVar.cat] || '') : '';
+  const breadParts = [parentLabel, label].filter(Boolean);
+
+  let breadHtml = breadParts.map((p, i) =>
+    i === breadParts.length - 1
+      ? `<span>${p}</span>`
+      : p
+  ).join(' → ');
+  if (breadIcon) breadHtml = breadIcon + ' ' + breadHtml;
 
   let html = `
-    <div class="breadcrumb">
-      ${selectedVar ? `${CAT_ICON[selectedVar.cat]||''} ${selectedVar.cat} → ${selectedVar.genus} → ${selectedVar.species} → <span>${varName}</span>` : ''}
-    </div>
-    <div class="card-title">${title}</div>
+    <div class="breadcrumb">${breadHtml}</div>
+    <div class="card-title" style="margin-bottom:12px;">${label}</div>
   `;
 
   if (!hasData) {
-    html += `<div style="color:var(--text-sec);font-size:13px;padding:16px 0;">
-      Niciun preț înregistrat încă pentru această varietate.
+    html += `<div style="color:var(--text-sec);font-size:13px;padding:8px 0 16px;">
+      Niciun preț înregistrat încă.
       <a href="#contribuie" style="color:var(--green);font-weight:600;">Contribuie primul! →</a>
     </div>`;
     panel.innerHTML = html;
     return;
   }
 
-  html += `
-    <table class="price-table" id="matrix-table">
-      <thead>
-        <tr>
-          <th>Dimensiune</th>
-          <th>Preț mediu</th>
-          <th>Min</th>
-          <th>Max</th>
-          <th>Trend săpt.</th>
-          <th>Contribuții</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
+  html += `<table class="price-table" id="matrix-table"><thead><tr>`;
+  if (multiSp) html += `<th>Specie</th>`;
+  html += `<th>Dimensiune</th><th>Preț mediu</th><th>Min</th><th>Max</th><th>Trend</th><th>Nr.</th></tr></thead><tbody>`;
 
+  let lastSp = null;
   rows.forEach(row => {
-    const dim      = row.height_bucket === 'generic' ? '— fără dimensiune' : row.height_bucket;
-    const avg      = row.avg_price     ? row.avg_price.toFixed(2) + ' RON' : '<span class="no-data">—</span>';
-    const minP     = row.min_price     ? row.min_price.toFixed(0) : '—';
-    const maxP     = row.max_price     ? row.max_price.toFixed(0) : '—';
-    const cnt      = row.total_count   || 0;
-    let trendHtml  = '<span class="trend-eq">— stabil</span>';
-    if (row.trend != null) {
-      if (row.trend > 0.5)       trendHtml = `<span class="trend-up">▲ +${row.trend.toFixed(1)} RON</span>`;
-      else if (row.trend < -0.5) trendHtml = `<span class="trend-dn">▼ ${row.trend.toFixed(1)} RON</span>`;
+    // separator vizual intre specii diferite
+    if (multiSp && row.species !== lastSp) {
+      lastSp = row.species;
     }
-
-    html += `<tr onclick="selectDimension('${row.canonical_key}', '${dim}', '${sp_key}', this)">
-      <td class="dim">${dim}</td>
+    const dim     = row.height_bucket === 'generic' ? '— fără dim.' : row.height_bucket;
+    const avg     = row.avg_price ? row.avg_price.toFixed(2) + ' RON' : '<span class="no-data">—</span>';
+    const minP    = row.min_price ? row.min_price.toFixed(0) : '—';
+    const maxP    = row.max_price ? row.max_price.toFixed(0) : '—';
+    const cnt     = row.total_count || 0;
+    let trendHtml = '<span class="trend-eq">—</span>';
+    if (row.trend != null) {
+      if (row.trend > 0.5)       trendHtml = `<span class="trend-up">▲ +${row.trend.toFixed(1)}</span>`;
+      else if (row.trend < -0.5) trendHtml = `<span class="trend-dn">▼ ${row.trend.toFixed(1)}</span>`;
+    }
+    const ck = (row.canonical_key || '').replace(/'/g, "\\'");
+    const dimSafe = dim.replace(/'/g, "\\'");
+    html += `<tr onclick="selectDimension('${ck}', '${dimSafe}', '${firstKey}', this)">`;
+    if (multiSp) html += `<td class="dim" style="font-size:12px;">${row.species || '—'}</td>`;
+    html += `<td class="dim">${dim}</td>
       <td class="price-val">${avg}</td>
-      <td>${minP}</td>
-      <td>${maxP}</td>
+      <td>${minP}</td><td>${maxP}</td>
       <td>${trendHtml}</td>
-      <td>${cnt}</td>
+      <td style="color:var(--text-sec);">${cnt}</td>
     </tr>`;
   });
 
@@ -523,7 +565,7 @@ function renderPriceTable(rows, varName, speciesName, sp_key) {
     <div id="evolution-chart-box" style="display:none;">
       <div class="chart-box">
         <div class="chart-box-title" id="evo-title"></div>
-        <div class="chart-box-sub">Evoluție preț mediu săptămânal (contribuții voluntare)</div>
+        <div class="chart-box-sub">Evoluție preț mediu săptămânal</div>
         <div id="evo-chart"></div>
       </div>
     </div>
@@ -610,8 +652,8 @@ function showEmptyState() {
   document.getElementById('price-main-card').innerHTML = `
     <div class="empty-state">
       <div class="emoji">🌿</div>
-      <h3>Selectează o varietate din catalog</h3>
-      <p>Navighează până la nivelul de varietate pentru a vedea prețurile</p>
+      <h3>Selectează o categorie din catalog</h3>
+      <p>Click pe orice nivel din stânga pentru a vedea prețurile</p>
     </div>`;
   selectedRow = null;
   if (priceChart) { priceChart.destroy(); priceChart = null; }
