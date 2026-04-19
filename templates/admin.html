@@ -131,6 +131,9 @@
     <a href="/admin/scraping" class="nav-item {% if section=='scraping' %}active{% endif %}">
       <span class="icon">🕷️</span><span>Scraping</span>
     </a>
+    <a href="/admin/visits" class="nav-item {% if section=='visits' %}active{% endif %}">
+      <span class="icon">👁️</span><span>Vizitatori</span>
+    </a>
   </nav>
   <div class="sidebar-footer">
     <a href="/">← Site public</a><br/>
@@ -325,6 +328,72 @@
       <strong>Abaterea 3:</strong> Ban automat 30 zile.<br/>
       <strong>Deblocare anticipată:</strong> Minim 20 utilizatori confirmă prețul propus (±10%).
     </div>
+  </div>
+  {% endif %}
+
+  <!-- ── VIZITATORI ──────────────────────────────────────────────────────── -->
+  {% if section == 'visits' %}
+  <div class="topbar">
+    <h1>Vizitatori</h1>
+  </div>
+
+  {% set s = visit_stats %}
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="num">{{ s.today.total }}</div>
+      <div class="lbl">Vizite Azi</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{ s.today.unique_ips }}</div>
+      <div class="lbl">IP-uri Unice Azi</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{ s.last_7d.total }}</div>
+      <div class="lbl">Vizite 7 Zile</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{ s.last_30d.total }}</div>
+      <div class="lbl">Vizite 30 Zile</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>📄 Top Pagini (30 zile)</h2></div>
+    <table>
+      <thead><tr><th>Pagină</th><th>Vizite</th></tr></thead>
+      <tbody>
+        {% for p in s.top_pages %}
+        <tr>
+          <td>{{ p.path }}</td>
+          <td><span class="badge badge-blue">{{ p.cnt }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" class="empty">Nicio vizită înregistrată.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>📅 Vizite pe Zile (30 zile)</h2></div>
+    <table>
+      <thead><tr><th>Data</th><th>Vizite</th><th>IP-uri Unice</th><th>Grafic</th></tr></thead>
+      <tbody>
+        {% for d in s.daily | reverse %}
+        <tr>
+          <td>{{ d.day }}</td>
+          <td>{{ d.total }}</td>
+          <td>{{ d.unique_ips }}</td>
+          <td>
+            <div style="background:var(--green2);height:8px;border-radius:4px;width:{{ [d.total * 4, 200] | min }}px;"></div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty">Nicio vizită.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% endif %}
 
