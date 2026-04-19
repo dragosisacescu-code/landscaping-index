@@ -551,3 +551,117 @@ def update_source_status(source_id, last_scraped=None, last_error=None):
         )
     conn.commit()
     conn.close()
+
+
+# ─── NAVIGARE CASCADA ─────────────────────────────────────────────────────────
+
+def _parse_species(species):
+    """Desparte numele speciei in gen, specie completa, varietate."""
+    parts = (species or '').split()
+    genus    = parts[0] if parts else '—'
+    sp_full  = ' '.join(parts[:2]) if len(parts) >= 2 else (parts[0] if parts else '—')
+    variety  = ' '.join(parts[2:]) if len(parts) > 2 else '(specie)'
+    return genus, sp_full, variety
+
+
+def get_cascade_tree():
+    """
+    Returneaza arborele botanic pentru navigare in cascada:
+    { category: { genus: { species_full: { variety: [{ canonical_key, level1_key, sp_key, height_bucket, price_count }] } } } }
+    """
+    conn = get_db()
+    c = _cur(conn)
+    c.execute("""
+        SELECT
+            i.category, i.species,
+            i.canonical_key, i.level1_key,
+            i.height_bucket,
+            COUNT(pv.id) AS price_count
+        FROM items i
+        LEFT JOIN prices_voluntary pv ON pv.item_id = i.id
+        GROUP BY i.category, i.species, i.canonical_key, i.level1_key, i.height_bucket
+        ORDER BY i.category, i.species, i.height_bucket
+    """)
+    rows = c.fetchall()
+    conn.close()
+
+    tree = {}
+    for r in rows:
+        cat             = r['category'] or 'Necunoscut'
+        genus, sp, var  = _parse_species(r['species'])
+        hb              = r['height_bucket'] or 'generic'
+        sp_key          = r['level1_key'].split('|')[0] if r['level1_key'] else ''
+
+        tree.setdefault(cat, {})
+        tree[cat].setdefault(genus, {})
+        tree[cat][genus].setdefault(sp, {})
+        tree[cat][genus][sp].setdefault(var, [])
+        tree[cat][genus][sp][var].append({
+            'canonical_key': r['canonical_key'],
+            'level1_key':    r['level1_key'],
+            'sp_key':        sp_key,
+            'height_bucket': hb,
+            'price_count':   r['price_count'],
+        })
+
+    return tree
+
+
+# ─── MATRICE PRETURI ──────────────────────────────────────────────────────────
+
+def get_price_matrix(species_key):
+    """
+    Pentru o specie/varietate (species_key = level1_key sau canonical_key prefix),
+    returneaza preturile grupate pe dimensiuni cu trend fata de saptamana precedenta.
+    """
+    conn = get_db()
+    c = _cur(conn)
+    week, year = current_week()
+    prev_week  = week - 1 if week > 1 else 52
+    prev_year  = year if week > 1 else year - 1
+
+    # Preturi curente (saptamana aceasta + precedenta)
+    c.execute("""
+        SELECT
+            i.height_bucket,
+            i.canonical_key,
+            i.display_name,
+            AVG(CASE WHEN pv.year=%s AND pv.week_number=%s THEN pv.price END) AS avg_cur,
+            AVG(CASE WHEN pv.year=%s AND pv.week_number=%s THEN pv.price END) AS avg_prev,
+            AVG(pv.price)   AS avg_all,
+            MIN(pv.price)   AS min_price,
+            MAX(pv.price)   AS max_price,
+            COUNT(pv.id)    AS total_count,
+            COUNT(CASE WHEN pv.year=%s AND pv.week_number=%s THEN 1 END) AS week_count
+        FROM items i
+        JOIN prices_voluntary pv ON pv.item_id = i.id
+        WHERE i.level1_key LIKE %s OR i.canonical_key LIKE %s
+        GROUP BY i.height_bucket, i.canonical_key, i.display_name
+        ORDER BY i.height_bucket NULLS LAST
+    """, (year, week, prev_year, prev_week, year, week,
+          species_key + '%', species_key + '%'))
+
+    rows = c.fetchall()
+    conn.close()
+
+    result = []
+    for r in rows:
+        avg_cur  = r['avg_cur']
+        avg_prev = r['avg_prev']
+        trend    = None
+        if avg_cur and avg_prev:
+            trend = round(avg_cur - avg_prev, 2)
+
+        result.append({
+            'height_bucket':  r['height_bucket'] or 'generic',
+            'canonical_key':  r['canonical_key'],
+            'display_name':   r['display_name'],
+            'avg_price':      round(r['avg_all'], 2) if r['avg_all'] else None,
+            'avg_cur':        round(avg_cur, 2) if avg_cur else None,
+            'min_price':      round(r['min_price'], 2) if r['min_price'] else None,
+            'max_price':      round(r['max_price'], 2) if r['max_price'] else None,
+            'trend':          trend,
+            'total_count':    r['total_count'],
+            'week_count':     r['week_count'],
+        })
+    return result
