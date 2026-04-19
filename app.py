@@ -164,6 +164,23 @@ def api_items():
     return jsonify(items)
 
 
+# ─── API: ARBORE DE NAVIGARE (cascada botanica) ───────────────────────────────
+
+@app.route('/api/tree')
+def api_tree():
+    return jsonify(db.get_cascade_tree())
+
+
+# ─── API: MATRICE PRETURI (per specie, grupat pe dimensiuni) ──────────────────
+
+@app.route('/api/price-matrix')
+def api_price_matrix():
+    species_key = request.args.get('key', '')
+    if not species_key:
+        return jsonify({'error': 'Lipseste cheia speciei'}), 400
+    return jsonify(db.get_price_matrix(species_key))
+
+
 # ─── API: PARSARE PREVIEW ─────────────────────────────────────────────────────
 
 @app.route('/api/parse-preview', methods=['POST'])
