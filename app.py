@@ -419,9 +419,10 @@ def _process_excel(file_obj, county, ip_hash, results):
 
         data_rows = rows[header_row_idx + 1:]
 
-        # Colecteaza toate descrierile + preturile valide, apoi trimite UN SINGUR batch
-        batch_descs  = []
-        batch_prices = []
+        # Colecteaza toate randurile valide
+        batch_descs    = []
+        batch_prices   = []
+        batch_raw_rows = []
 
         for row in data_rows:
             if not row:
@@ -467,22 +468,22 @@ def _process_excel(file_obj, county, ip_hash, results):
 
             batch_descs.append(' '.join(desc_parts))
             batch_prices.append(price_val)
+            batch_raw_rows.append(row)
 
-        # Trimite in batch-uri de 20 → max 3-4 apeluri API pentru un fisier tipic
-        BATCH = 20
-        from parser import parse_batch_with_claude, build_item_keys, deduct_vat
-        for start in range(0, len(batch_descs), BATCH):
-            chunk_descs  = batch_descs[start:start + BATCH]
-            chunk_prices = batch_prices[start:start + BATCH]
-            parsed_list  = parse_batch_with_claude(chunk_descs)
-            for parsed, price_val in zip(parsed_list, chunk_prices):
-                if not parsed:
-                    results['skipped'] += 1
-                    continue
-                keys = build_item_keys(parsed)
-                net_price = deduct_vat(float(price_val), keys['category'],
-                                       vat_included=parsed.get('vat_included'))
+        # Parsare directa — ZERO apeluri Claude pentru Excel structurat
+        from parser import parse_excel_row_direct, deduct_vat
+        for desc, price_val, raw_row in zip(batch_descs, batch_prices, batch_raw_rows):
+            try:
+                latin  = raw_row[name_col]  if (name_col  is not None and raw_row[name_col])  else ''
+                roman  = raw_row[roman_col] if (roman_col is not None and raw_row[roman_col]) else ''
+                diam   = raw_row[diam_col]  if (diam_col  is not None and raw_row[diam_col])  else None
+                height = raw_row[height_col]if (height_col is not None and raw_row[height_col]) else None
+                keys   = parse_excel_row_direct(str(latin), str(roman) if roman else '', diam, height)
+                net_price = deduct_vat(float(price_val), keys['category'], vat_included=False)
                 _save_item(keys, net_price, county, ip_hash, results)
+            except Exception as ex:
+                results['warnings'].append(f"Rand sarit: {str(ex)[:80]}")
+                results['skipped'] += 1
 
     except Exception as e:
         results['errors'].append(f'Eroare Excel: {str(e)[:150]}')
