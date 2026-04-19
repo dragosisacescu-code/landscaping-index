@@ -104,6 +104,14 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_items_level2    ON items(level2_key)",
         "CREATE INDEX IF NOT EXISTS idx_violations_ip   ON ip_violations(ip_hash, item_id)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url ON scraping_sources(base_url)",
+        """CREATE TABLE IF NOT EXISTS visits (
+            id         SERIAL PRIMARY KEY,
+            ip_hash    TEXT NOT NULL,
+            path       TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_visits_created ON visits(created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_visits_ip      ON visits(ip_hash)",
     ]:
         c.execute(stmt)
 
@@ -751,3 +759,81 @@ def get_price_matrix(species_key):
             'week_count':     r['week_count'],
         })
     return result
+
+
+# ─── ANALYTICS VIZITATORI ─────────────────────────────────────────────────────
+
+def log_visit(ip_hash, path):
+    """Loghează o vizită anonimă (ip_hash, path)."""
+    try:
+        conn = get_db()
+        c = _cur(conn)
+        c.execute(
+            "INSERT INTO visits (ip_hash, path) VALUES (%s, %s)",
+            (ip_hash, path[:200])
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # nu blocam request-ul niciodata din cauza analytics
+
+
+def get_visit_stats():
+    """Returnează statistici agregate despre vizitatori."""
+    conn = get_db()
+    c = _cur(conn)
+
+    c.execute("""
+        SELECT
+            COUNT(*)                                          AS total_azi,
+            COUNT(DISTINCT ip_hash)                           AS unici_azi,
+            SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days'
+                     THEN 1 ELSE 0 END)                      AS total_7z,
+            COUNT(DISTINCT CASE WHEN created_at >= NOW() - INTERVAL '7 days'
+                                THEN ip_hash END)             AS unici_7z,
+            SUM(CASE WHEN created_at >= NOW() - INTERVAL '30 days'
+                     THEN 1 ELSE 0 END)                      AS total_30z,
+            COUNT(DISTINCT CASE WHEN created_at >= NOW() - INTERVAL '30 days'
+                                THEN ip_hash END)             AS unici_30z
+        FROM visits
+        WHERE created_at >= CURRENT_DATE
+    """)
+    row = _row(c.fetchone())
+
+    # IP-uri unice pe ultimele 30 zile (pentru card principal)
+    c.execute("""
+        SELECT COUNT(DISTINCT ip_hash) AS unici_30z_total
+        FROM visits
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+    """)
+    r30 = _row(c.fetchone())
+
+    # Top 8 pagini (ultimele 7 zile)
+    c.execute("""
+        SELECT path, COUNT(*) AS hits, COUNT(DISTINCT ip_hash) AS unici
+        FROM visits
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY path
+        ORDER BY hits DESC
+        LIMIT 8
+    """)
+    top_pages = [_row(r) for r in c.fetchall()]
+
+    # Vizitatori unici pe zi, ultimele 30 zile
+    c.execute("""
+        SELECT DATE(created_at) AS zi, COUNT(DISTINCT ip_hash) AS unici
+        FROM visits
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at)
+        ORDER BY zi
+    """)
+    daily = [_row(r) for r in c.fetchall()]
+
+    conn.close()
+    return {
+        'azi':      {'total': int(row['total_azi'] or 0), 'unici': int(row['unici_azi'] or 0)},
+        '7z':       {'total': int(row['total_7z'] or 0),  'unici': int(row['unici_7z'] or 0)},
+        '30z':      {'total': int(row['total_30z'] or 0), 'unici': int(r30['unici_30z_total'] or 0)},
+        'top_pages': top_pages,
+        'daily':     daily,
+    }
