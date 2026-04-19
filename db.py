@@ -571,7 +571,7 @@ def get_banned_ips():
     conn = get_db()
     c = _cur(conn)
     c.execute("""
-        SELECT iv.ip_hash, iv.violation_count, iv.banned_until, iv.updated_at,
+        SELECT iv.ip_hash, iv.item_id, iv.violation_count, iv.banned_until, iv.updated_at,
                i.display_name as item_name
         FROM ip_violations iv
         JOIN items i ON i.id = iv.item_id
