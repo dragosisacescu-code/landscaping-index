@@ -451,9 +451,9 @@ def get_online_prices_for_chart(level1_key):
 def get_total_prices_count():
     conn = get_db()
     c = _cur(conn)
-    c.execute("SELECT COUNT(*) as cnt FROM prices_voluntary")
+    c.execute("SELECT COUNT(*) as cnt FROM prices_voluntary WHERE price > 0")
     vol = c.fetchone()['cnt']
-    c.execute("SELECT COUNT(*) as cnt FROM prices_online")
+    c.execute("SELECT COUNT(*) as cnt FROM prices_online WHERE price_avg > 0")
     onl = c.fetchone()['cnt']
     conn.close()
     return vol + onl
@@ -644,7 +644,7 @@ def get_price_matrix(species_key):
             COUNT(pv.id)    AS total_count,
             COUNT(CASE WHEN pv.year=%s AND pv.week_number=%s THEN 1 END) AS week_count
         FROM items i
-        JOIN prices_voluntary pv ON pv.item_id = i.id
+        JOIN prices_voluntary pv ON pv.item_id = i.id AND pv.price > 0
         WHERE {like_parts}
         GROUP BY i.species, i.height_bucket, i.canonical_key, i.display_name
         ORDER BY i.species, i.height_bucket NULLS LAST
