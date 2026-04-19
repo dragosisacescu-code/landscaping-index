@@ -336,9 +336,10 @@ def _process_excel(file_obj, county, ip_hash, results):
 
         HEADER_KEYWORDS = ['denumire', 'produs', 'species', 'name', 'item',
                            'planta', 'plant', 'description']
-        PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei', 'tarif', 'euro']
-        HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)', 'inaltime (cm)']
-        DIAM_KEYWORDS   = ['diam', 'ø', 'diametru', 'diameter', 'circumferinta', 'circ']
+        PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei', 'tarif', 'euro',
+                           'p.u.', 'p.u', 'pu ', 'unit', 'unitar']
+        HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)', 'inaltime (cm)', 'h/']
+        DIAM_KEYWORDS   = ['diam', 'ø', '©', 'diametru', 'diameter', 'circumferinta', 'circ', 'd/']
         SECTION_WORDS   = ['total', 'subtotal', 'oferta', 'categorie', 'section', 'grupa']
         CATEGORY_MAP    = {
             'conifer': 'conifer', 'molid': 'conifer', 'brad': 'conifer',
@@ -387,10 +388,18 @@ def _process_excel(file_obj, county, ip_hash, results):
 
         # Prefer PRET UNITAR fara TVA / fara total
         price_col = None
+        # 1. Cauta explicit p.u. / pret unitar
         for i, h in enumerate(header):
-            if 'pret' in h and 'tva' not in h and 'total' not in h:
+            if h in ('p.u.', 'p.u', 'pu') or ('unitar' in h and 'total' not in h):
                 price_col = i
                 break
+        # 2. Orice coloana cu 'pret' dar nu 'total' sau 'tva'
+        if price_col is None:
+            for i, h in enumerate(header):
+                if 'pret' in h and 'tva' not in h and 'total' not in h:
+                    price_col = i
+                    break
+        # 3. Fallback general
         if price_col is None:
             price_col = _find_col(header, PRICE_KEYWORDS)
 
