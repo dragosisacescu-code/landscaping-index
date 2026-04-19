@@ -263,13 +263,14 @@
           <input type="number" id="contrib-price" placeholder="ex: 145.00" min="0.01" step="0.01" style="width:100%;" />
         </div>
         <div>
-          <div class="form-label">Județul tău</div>
-          <select id="contrib-county" style="width:100%;">
-            <option value="">— Selectează —</option>
+          <div class="form-label">Județul tău <span style="color:#c0392b;">*</span></div>
+          <select id="contrib-county" style="width:100%;border-color:var(--border);" onchange="this.style.borderColor=this.value?'var(--green-lt)':'#e74c3c'">
+            <option value="">— Obligatoriu —</option>
             {% for county in counties %}
               <option value="{{ county }}">{{ county }}</option>
             {% endfor %}
           </select>
+          <div id="county-error" style="color:#c0392b;font-size:11px;margin-top:3px;display:none;">⚠ Selectează județul pentru a putea contribui.</div>
         </div>
       </div>
       <div>
@@ -288,9 +289,10 @@
       Acceptăm Excel (.xlsx), PDF și imagini (JPG, PNG). Agentul AI parsează automat.
     </p>
     <div>
-      <div class="form-label" style="margin-bottom:8px;">Județul pentru datele din fișier</div>
-      <select id="upload-county" style="width:200px;">
-        <option value="">— Opțional —</option>
+      <div class="form-label" style="margin-bottom:4px;">Județul pentru datele din fișier <span style="color:#c0392b;">*</span></div>
+      <div style="font-size:11px;color:var(--text-sec);margin-bottom:6px;">Locația este obligatorie — va fi asociată tuturor prețurilor din fișier.</div>
+      <select id="upload-county" style="width:220px;" onchange="this.style.borderColor=this.value?'var(--green-lt)':'#e74c3c'">
+        <option value="">— Selectează județul —</option>
         {% for county in counties %}
           <option value="{{ county }}">{{ county }}</option>
         {% endfor %}
@@ -531,19 +533,31 @@ function renderPriceTable(rows, label, parentLabel, firstKey) {
 
   html += `<table class="price-table" id="matrix-table"><thead><tr>`;
   if (multiSp) html += `<th>Specie</th>`;
-  html += `<th>Dimensiune</th><th>Preț mediu</th><th>Min</th><th>Max</th><th>Trend</th><th>Nr.</th></tr></thead><tbody>`;
+  html += `<th>Dimensiune</th><th>Preț mediu</th><th>Cel mai mic</th><th>Cel mai mare</th><th>Trend</th><th>Nr.</th></tr></thead><tbody>`;
 
   let lastSp = null;
   rows.forEach(row => {
-    // separator vizual intre specii diferite
     if (multiSp && row.species !== lastSp) {
       lastSp = row.species;
     }
-    const dim     = row.height_bucket === 'generic' ? '— fără dim.' : row.height_bucket;
-    const avg     = row.avg_price ? row.avg_price.toFixed(2) + ' RON' : '<span class="no-data">—</span>';
-    const minP    = row.min_price ? row.min_price.toFixed(0) : '—';
-    const maxP    = row.max_price ? row.max_price.toFixed(0) : '—';
-    const cnt     = row.total_count || 0;
+    const dim  = row.height_bucket === 'generic' ? '— fără dim.' : row.height_bucket;
+    const avg  = row.avg_price ? row.avg_price.toFixed(2) + ' RON' : '<span class="no-data">—</span>';
+    const cnt  = row.total_count || 0;
+
+    // Min cu județ
+    let minHtml = '<span class="no-data">—</span>';
+    if (row.min_price) {
+      const loc = row.min_county ? `<br><span style="font-size:10px;color:var(--text-sec);font-weight:400;">📍 ${row.min_county}</span>` : '';
+      minHtml = `<span style="color:#1a5c3a;font-weight:700;">${row.min_price.toFixed(0)} RON</span>${loc}`;
+    }
+
+    // Max cu județ
+    let maxHtml = '<span class="no-data">—</span>';
+    if (row.max_price) {
+      const loc = row.max_county ? `<br><span style="font-size:10px;color:var(--text-sec);font-weight:400;">📍 ${row.max_county}</span>` : '';
+      maxHtml = `<span style="color:#c0392b;font-weight:700;">${row.max_price.toFixed(0)} RON</span>${loc}`;
+    }
+
     let trendHtml = '<span class="trend-eq">—</span>';
     if (row.trend != null) {
       if (row.trend > 0.5)       trendHtml = `<span class="trend-up">▲ +${row.trend.toFixed(1)}</span>`;
@@ -555,7 +569,8 @@ function renderPriceTable(rows, label, parentLabel, firstKey) {
     if (multiSp) html += `<td class="dim" style="font-size:12px;">${row.species || '—'}</td>`;
     html += `<td class="dim">${dim}</td>
       <td class="price-val">${avg}</td>
-      <td>${minP}</td><td>${maxP}</td>
+      <td style="line-height:1.5;">${minHtml}</td>
+      <td style="line-height:1.5;">${maxHtml}</td>
       <td>${trendHtml}</td>
       <td style="color:var(--text-sec);">${cnt}</td>
     </tr>`;
@@ -716,9 +731,18 @@ async function submitContrib() {
   const price  = document.getElementById('contrib-price').value;
   const county = document.getElementById('contrib-county').value;
   const result = document.getElementById('contrib-result');
+  const countyErr = document.getElementById('county-error');
+
   if (!text || !price) {
     result.innerHTML = '<div class="alert alert-error">Completează produsul și prețul.</div>'; return;
   }
+  if (!county) {
+    countyErr.style.display = '';
+    document.getElementById('contrib-county').style.borderColor = '#e74c3c';
+    result.innerHTML = '<div class="alert alert-error">⚠ Județul este obligatoriu.</div>';
+    return;
+  }
+  countyErr.style.display = 'none';
   result.innerHTML = '<div style="color:var(--text-sec);">⏳ Se trimite...</div>';
   try {
     const res = await fetch('/api/contribute', {
@@ -755,6 +779,12 @@ async function handleFile(file) {
   if (!file) return;
   const county  = document.getElementById('upload-county').value;
   const results = document.getElementById('upload-results');
+  if (!county) {
+    results.innerHTML = '<div class="err">⚠ Selectează județul înainte de a încărca fișierul.</div>';
+    document.getElementById('upload-county').style.borderColor = '#e74c3c';
+    document.getElementById('upload-county').focus();
+    return;
+  }
   results.innerHTML = '<div style="color:var(--text-sec);">⏳ Se procesează fișierul...</div>';
   const fd = new FormData();
   fd.append('file', file);
