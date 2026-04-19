@@ -459,6 +459,22 @@ def get_total_prices_count():
     return vol + onl
 
 
+def get_catalog_stats():
+    """Numara doar produsele si categoriile care au cel putin un pret real (>0)."""
+    conn = get_db()
+    c = _cur(conn)
+    c.execute("""
+        SELECT
+            COUNT(DISTINCT i.id)       AS item_count,
+            COUNT(DISTINCT i.category) AS cat_count
+        FROM items i
+        JOIN prices_voluntary pv ON pv.item_id = i.id AND pv.price > 0
+    """)
+    row = c.fetchone()
+    conn.close()
+    return int(row['item_count'] or 0), int(row['cat_count'] or 0)
+
+
 def get_county_stats(item_level1_key):
     conn = get_db()
     c = _cur(conn)
