@@ -236,6 +236,9 @@ def contribute():
     if not text or not price:
         return jsonify({'error': 'Lipsesc date obligatorii'}), 400
 
+    if not county:
+        return jsonify({'error': 'Județul este obligatoriu pentru a contribui cu un preț.'}), 400
+
     try:
         price = float(price)
         if price <= 0:
