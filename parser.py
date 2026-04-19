@@ -57,21 +57,27 @@ _ARBUSTI = ['berberis', 'buxus', 'cornus', 'cotinus', 'deutzia', 'euonymus',
 _GAZON = ['gazon', 'festuca', 'lolium', 'poa annua', 'agrostis', 'cynodon']
 
 
+def _word_match(keyword: str, name: str) -> bool:
+    """True daca keyword apare ca cuvant intreg la inceputul numelui latin."""
+    return name == keyword or name.startswith(keyword + ' ') or \
+           (' ' + keyword + ' ') in (' ' + name + ' ')
+
+
 def _detect_category(latin_name: str) -> str:
     n = latin_name.lower().strip()
     for k in _TARATOARE:
-        if k in n:
+        if _word_match(k, n):
             return 'Plante_taratoare'
     for k in _CONIFERE:
-        if k in n:
+        if _word_match(k, n):
             return 'Conifere'
     for k in _GAZON:
-        if k in n:
+        if _word_match(k, n):
             return 'Gazon'
     for k in _ARBUSTI:
-        if k in n:
+        if _word_match(k, n):
             return 'Arbusti'
-    return 'Arbori'  # default pentru arbori foiosi
+    return 'Arbori'
 
 
 def _parse_range_cm(val) -> tuple:
