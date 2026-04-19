@@ -254,53 +254,33 @@ def scrape_olx(source_id):
 
 
 def scrape_planteo(source_id):
-    """
-    planteo.ro — magazin de plante (Shopify).
-    Folosim JSON API similar cu Verdena.
-    """
+    """planteo.ro — Shopify JSON API."""
     base        = "https://www.planteo.ro"
-    collections = [
-        "conifere",
-        "arbori",
-        "arbusti",
-        "gazon",
-    ]
+    collections = ["conifere", "arbori", "arbusti", "gazon"]
     count = 0
     for col in collections:
         url  = f"{base}/collections/{col}/products.json?limit=250"
         data = fetch_json(url)
         if not data or 'products' not in data:
-            # Fallback HTML daca JSON nu merge
             soup = fetch(f"{base}/collections/{col}")
             if not soup:
-                time.sleep(DELAY)
-                continue
+                time.sleep(DELAY); continue
             for card in soup.select('.product-item, [class*="product-card"], .grid__item')[:30]:
                 name_el  = card.select_one('h2, h3, .product-item__title, [class*="title"]')
                 price_el = card.select_one('.price, [class*="price"]')
                 link_el  = card.select_one('a[href]')
                 if name_el and price_el:
-                    href     = link_el['href'] if link_el else f"/collections/{col}"
+                    href = link_el['href'] if link_el else f"/collections/{col}"
                     full_url = href if href.startswith('http') else base + href
-                    ok = process_scraped_item(
-                        name_el.get_text(strip=True),
-                        price_el.get_text(strip=True),
-                        'Planteo', full_url
-                    )
-                    if ok:
+                    if process_scraped_item(name_el.get_text(strip=True),
+                                            price_el.get_text(strip=True), 'Planteo', full_url):
                         count += 1
-            time.sleep(DELAY)
-            continue
+            time.sleep(DELAY); continue
         for prod in data['products']:
-            title    = prod.get('title', '')
-            handle   = prod.get('handle', '')
-            variants = prod.get('variants', [])
-            if not title or not variants:
-                continue
-            price_str   = variants[0].get('price', '')
-            product_url = f"{base}/products/{handle}"
-            ok = process_scraped_item(title, price_str, 'Planteo', product_url)
-            if ok:
+            title, handle, variants = prod.get('title',''), prod.get('handle',''), prod.get('variants',[])
+            if not title or not variants: continue
+            if process_scraped_item(title, variants[0].get('price',''),
+                                    'Planteo', f"{base}/products/{handle}"):
                 count += 1
         time.sleep(DELAY)
     log.info(f"Planteo: {count} produse indexate")
@@ -308,13 +288,216 @@ def scrape_planteo(source_id):
     return count
 
 
+def _scrape_shopify(base_url, source_name, source_id, collections):
+    """Helper generic pentru orice magazin Shopify cu /collections/.../products.json"""
+    count = 0
+    for col in collections:
+        url  = f"{base_url}/collections/{col}/products.json?limit=250"
+        data = fetch_json(url)
+        if not data or 'products' not in data:
+            time.sleep(DELAY); continue
+        for prod in data['products']:
+            title    = prod.get('title', '')
+            handle   = prod.get('handle', '')
+            variants = prod.get('variants', [])
+            if not title or not variants: continue
+            price_str   = variants[0].get('price', '')
+            product_url = f"{base_url}/products/{handle}"
+            if process_scraped_item(title, price_str, source_name, product_url):
+                count += 1
+        time.sleep(DELAY)
+    log.info(f"{source_name}: {count} produse indexate")
+    db.update_source_status(source_id, datetime.utcnow().isoformat())
+    return count
+
+
+def scrape_robakker(source_id):
+    """robakker.ro — Shopify."""
+    return _scrape_shopify(
+        'https://www.robakker.ro', 'Robakker', source_id,
+        ['conifere', 'arbori-ornamentali', 'arbusti-ornamentali',
+         'plante-acoperitoare', 'gazon', 'plante-de-gard']
+    )
+
+
+def scrape_gradinamax(source_id):
+    """gradinamax.ro — HTML scraping."""
+    base  = "https://www.gradinamax.ro"
+    pages = ['/conifere', '/arbori', '/arbusti', '/gazon', '/plante-ornamentale']
+    count = 0
+    for page in pages:
+        soup = fetch(base + page)
+        if not soup: time.sleep(DELAY); continue
+        for card in soup.select('.product, .product-item, [class*="product-card"]')[:40]:
+            name_el  = card.select_one('h2, h3, h4, [class*="title"], [class*="name"]')
+            price_el = card.select_one('[class*="price"], [class*="pret"]')
+            link_el  = card.select_one('a[href]')
+            if name_el and price_el:
+                href = link_el['href'] if link_el else page
+                full_url = href if href.startswith('http') else base + href
+                if process_scraped_item(name_el.get_text(strip=True),
+                                        price_el.get_text(strip=True), 'Gradina Max', full_url):
+                    count += 1
+        time.sleep(DELAY)
+    log.info(f"Gradina Max: {count} produse indexate")
+    db.update_source_status(source_id, datetime.utcnow().isoformat())
+    return count
+
+
+def scrape_hornbach(source_id):
+    """
+    hornbach.ro — categoria gradina.
+    Folosim API-ul intern de catalog (JSON).
+    """
+    base = "https://www.hornbach.ro"
+    categories = [
+        '/api/v2/products?category=conifere&limit=50',
+        '/api/v2/products?category=arbori-arbusti&limit=50',
+        '/api/v2/products?category=gazon&limit=50',
+    ]
+    count = 0
+    # Incearca HTML daca JSON nu exista
+    html_pages = [
+        '/c/gradina/plante/conifere/',
+        '/c/gradina/plante/arbori-si-arbusti/',
+        '/c/gradina/gazon/',
+        '/c/gradina/plante/plante-decorative/',
+    ]
+    for page in html_pages:
+        soup = fetch(base + page)
+        if not soup: time.sleep(DELAY); continue
+        for card in soup.select('[class*="product"], [class*="Product"], article')[:40]:
+            name_el  = card.select_one('h2, h3, [class*="title"], [class*="name"]')
+            price_el = card.select_one('[class*="price"], [class*="Price"], [class*="pret"]')
+            link_el  = card.select_one('a[href]')
+            if name_el and price_el:
+                href = link_el['href'] if link_el else page
+                full_url = href if href.startswith('http') else base + href
+                if process_scraped_item(name_el.get_text(strip=True),
+                                        price_el.get_text(strip=True), 'Hornbach', full_url):
+                    count += 1
+        time.sleep(DELAY)
+    log.info(f"Hornbach: {count} produse indexate")
+    db.update_source_status(source_id, datetime.utcnow().isoformat())
+    return count
+
+
+def scrape_dedeman(source_id):
+    """dedeman.ro — gradina & plante."""
+    base  = "https://www.dedeman.ro"
+    pages = [
+        '/ro/gradina/plante-si-conifere/conifere',
+        '/ro/gradina/plante-si-conifere/arbori-si-arbusti',
+        '/ro/gradina/gazon',
+        '/ro/gradina/amenajare-gradina/pietris-si-piatra',
+    ]
+    count = 0
+    for page in pages:
+        soup = fetch(base + page)
+        if not soup: time.sleep(DELAY); continue
+        for card in soup.select('.product-tile, .product-item, [class*="product-card"]')[:40]:
+            name_el  = card.select_one('[class*="title"], [class*="name"], h2, h3')
+            price_el = card.select_one('[class*="price"], [class*="pret"]')
+            link_el  = card.select_one('a[href]')
+            if name_el and price_el:
+                href = link_el['href'] if link_el else page
+                full_url = href if href.startswith('http') else base + href
+                if process_scraped_item(name_el.get_text(strip=True),
+                                        price_el.get_text(strip=True), 'Dedeman', full_url):
+                    count += 1
+        time.sleep(DELAY)
+    log.info(f"Dedeman: {count} produse indexate")
+    db.update_source_status(source_id, datetime.utcnow().isoformat())
+    return count
+
+
+# ─── MANOPERĂ ─────────────────────────────────────────────────────────────────
+
+def scrape_olx_servicii(source_id):
+    """
+    OLX servicii peisagistică — prețuri manoperă.
+    Extrage: plantare, gazonare, tuns gard, amenajare.
+    """
+    base  = "https://www.olx.ro"
+    terms = [
+        "gazonare",
+        "plantare copaci",
+        "tuns gard viu",
+        "amenajare gradina",
+        "peisagistica",
+        "irigatii montaj",
+        "tuns iarba",
+        "design gradina",
+    ]
+    count = 0
+    for term in terms:
+        url  = f"{base}/oferte/q-{term.replace(' ', '-')}/"
+        soup = fetch(url)
+        if not soup: time.sleep(DELAY); continue
+        cards = soup.select('[data-cy="l-card"]')
+        for card in cards[:15]:
+            name_el  = card.select_one('[data-testid="ad-title"]') or card.select_one('h6, h4')
+            price_el = card.select_one('[data-testid="ad-price"]') or card.select_one('[class*="price"]')
+            link_el  = card.select_one('a[href]')
+            if name_el and price_el:
+                href = link_el['href'] if link_el else url
+                full_url = href if href.startswith('http') else base + href
+                name_text = f"{name_el.get_text(strip=True)} manopera {term}"
+                if process_scraped_item(name_text, price_el.get_text(strip=True),
+                                        'OLX Servicii Peisagistic', full_url, vat_included=False):
+                    count += 1
+        time.sleep(DELAY)
+    log.info(f"OLX Servicii: {count} intrari manopera indexate")
+    db.update_source_status(source_id, datetime.utcnow().isoformat())
+    return count
+
+
+def scrape_publi24_servicii(source_id):
+    """publi24.ro — servicii peisagistică & gradinarit."""
+    base  = "https://www.publi24.ro"
+    pages = [
+        '/anunturi/servicii/gradinarit/',
+        '/anunturi/servicii/peisagistica/',
+    ]
+    count = 0
+    for page in pages:
+        soup = fetch(base + page)
+        if not soup: time.sleep(DELAY); continue
+        for card in soup.select('.announcement, .listing-item, [class*="card"]')[:30]:
+            name_el  = card.select_one('h2, h3, h4, [class*="title"]')
+            price_el = card.select_one('[class*="price"], [class*="pret"]')
+            link_el  = card.select_one('a[href]')
+            if name_el and price_el:
+                href = link_el['href'] if link_el else page
+                full_url = href if href.startswith('http') else base + href
+                name_text = name_el.get_text(strip=True) + ' manopera'
+                if process_scraped_item(name_text, price_el.get_text(strip=True),
+                                        'Publi24 Peisagistica', full_url, vat_included=False):
+                    count += 1
+        time.sleep(DELAY)
+    log.info(f"Publi24: {count} intrari manopera indexate")
+    db.update_source_status(source_id, datetime.utcnow().isoformat())
+    return count
+
+
 # ─── ORCHESTRATOR ─────────────────────────────────────────────────────────────
 
 SCRAPERS = {
-    'Verdena':     scrape_verdena,
-    'SweetGarden': scrape_sweetgarden,
-    'OLX':         scrape_olx,
-    'Planteo':     scrape_planteo,
+    # Plante & material dendrofloricol
+    'Verdena':                  scrape_verdena,
+    'SweetGarden':              scrape_sweetgarden,
+    'OLX':                      scrape_olx,
+    'OLX Plante':               scrape_olx,
+    'Planteo':                  scrape_planteo,
+    'Robakker':                 scrape_robakker,
+    'Gradina Max':              scrape_gradinamax,
+    'Hornbach':                 scrape_hornbach,
+    'Dedeman':                  scrape_dedeman,
+    # Manopera & servicii
+    'OLX Servicii Peisagistic': scrape_olx_servicii,
+    'OLX Gradinarit':           scrape_olx_servicii,
+    'Publi24 Peisagistica':     scrape_publi24_servicii,
+    'Publi24 Gradinarit':       scrape_publi24_servicii,
 }
 
 
