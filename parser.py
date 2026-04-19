@@ -6,7 +6,7 @@ Acelasi flux pentru input manual, scraping si upload fisiere.
 import os
 import json
 
-# ── BUCKETS FIXE ────────────────────────────────────────────────────────────
+# ─── BUCKETS FIXE ─────────────────────────────────────────────────────────────
 
 HEIGHT_BUCKETS = [
     (0, 50), (50, 100), (100, 150), (150, 200),
@@ -22,7 +22,7 @@ CIRCUMFERENCE_BUCKETS = [
     (30, 40), (40, 50), (50, 60)
 ]
 
-# Categorii cu TVA redus (plante) vs standard (materiale)
+# Categorii cu TVA redus (plante) vs standard (materiale/servicii)
 VAT_RATES = {
     'Conifere':         0.11,
     'Arbori':           0.11,
@@ -30,6 +30,8 @@ VAT_RATES = {
     'Plante_taratoare': 0.11,
     'Gazon':            0.11,
     'Materiale':        0.21,
+    'Piatra':           0.21,
+    'Manopera':         0.21,
     'Necunoscut':       0.11,
 }
 
@@ -67,7 +69,7 @@ def trimmed_mean(prices):
     4-9   → eliminam 1 min + 1 max
     10-19 → eliminam 2 min + 2 max
     20-29 → eliminam 4 min + 4 max
-    30+ → continuam logic (+2 de fiecare parte la fiecare 10 preturi)
+    30+   → continuam logic (+2 de fiecare parte la fiecare 10 preturi)
     """
     if not prices:
         return None
@@ -103,9 +105,9 @@ Descriere: "{text}"
 
 Returneaza STRICT JSON valid, fara alte cuvinte:
 {{
-  "species": "numele speciei normalizat (romana sau latin, ex: Thuja Occidentalis, Lavanda, Gazon Rulou)",
-  "category": "Conifere / Arbori / Arbusti / Plante_taratoare / Gazon / Materiale / Necunoscut",
-  "unit": "buc / mp / tona / ml",
+  "species": "numele normalizat al speciei SAU tipul de serviciu/material (ex: Thuja Occidentalis, Gazonare, Plantare copac, Tuns gard viu, Piatra cubica, Substrat turba)",
+  "category": "Conifere / Arbori / Arbusti / Plante_taratoare / Gazon / Materiale / Piatra / Manopera / Necunoscut",
+  "unit": "buc / mp / ml / tona / ora / zi / proiect",
   "height_min_cm": numar intreg cm sau null,
   "height_max_cm": numar intreg cm sau null,
   "root_type": "CLT" sau "balot" sau "radacina_nuda" sau null,
@@ -117,14 +119,25 @@ Returneaza STRICT JSON valid, fara alte cuvinte:
   "vat_included": true sau false sau null
 }}
 
-Reguli:
+Reguli categorii:
+- Conifere: thuja, picea, pinus, juniperus, chamaecyparis, taxus, abies, cedrus etc.
+- Arbori: arbori foiosi ornamentali, stejar, mesteacan, artar, frasin, tei, paltin etc.
+- Arbusti: arbusti ornamentali, trandafir, forsythia, spiraea, ligustrum, buxus etc.
+- Plante_taratoare: ivy, vinca, cotoneaster orizontal, hedera etc.
+- Gazon: gazon rulou, gazon samanta, gazon sport, gazon umbra etc.
+- Materiale: substrat, turba, cocos, ingrasamant, geotextil, folie iaz, mulci, scoarta etc.
+- Piatra: piatra cubica, pietris, nisip, granit, marmura, gresie, bordura, pavaj, roca decorativa etc.
+- Manopera: gazonare, plantare, tuns (gard viu / iarba / arbori), amenajare gradina, design peisagistic, irigatii montaj, cosit, sapare, fertilizare, tratamente fitosanitare, curatenie gradina, tarif ora muncitor, transport material verde etc.
+- Necunoscut: altceva
+
+Reguli generale:
 - Converteste m in cm (1.5m = 150cm)
-- C5 / C10 / C25 / C45 sau ghiveci = root_type CLT cu valoarea respectiva
-- "ghiveci", "container", "clt", "c" inainte de numar = root_type CLT
+- C5 / C10 / C25 / C45 sau ghiveci = root_type CLT
 - "balot", "b&b", "bulgare" = root_type balot
 - "radacina nuda", "rn" = root_type radacina_nuda
 - Circumferinta = masurare trunchi la 1m inaltime (cir/circ/circumf)
-- Daca apare "fara TVA", "excl TVA", "+TVA" → vat_included: false
+- Pentru Manopera: unit = mp (suprafata), ml (liniar), buc (per bucata/copac), ora, zi
+- Daca apare "fara TVA", "+TVA" → vat_included: false
 - Daca apare "cu TVA", "incl TVA" → vat_included: true
 - Altfel → vat_included: null
 - Raspunde DOAR cu JSON"""
