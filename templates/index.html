@@ -203,11 +203,11 @@
       <div class="lbl">Prețuri Indexate</div>
     </div>
     <div class="hero-stat">
-      <div class="num">{{ categories.values() | map('length') | sum if categories else 0 }}</div>
-      <div class="lbl">Produse în Catalog</div>
+      <div class="num">{{ item_count }}</div>
+      <div class="lbl">Produse cu Prețuri</div>
     </div>
     <div class="hero-stat">
-      <div class="num">{{ categories | length }}</div>
+      <div class="num">{{ cat_count }}</div>
       <div class="lbl">Categorii</div>
     </div>
   </div>
