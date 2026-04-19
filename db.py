@@ -697,7 +697,7 @@ def get_cascade_tree():
 def get_price_matrix(species_key):
     """
     species_key: un singur key SAU mai multe separate prin virgulă.
-    Returneaza preturile grupate pe specie+dimensiune cu trend.
+    Returneaza preturile grupate pe specie+dimensiune cu trend, min/max + judetul lor.
     """
     keys = [k.strip() for k in species_key.split(',') if k.strip()]
     if not keys:
@@ -714,25 +714,48 @@ def get_price_matrix(species_key):
     for k in keys:
         like_params.extend([k + '%', k + '%'])
 
+    # CTE cu window functions pentru a obtine judetul la min si max pret
     c.execute(f"""
+        WITH raw AS (
+            SELECT
+                i.species,
+                i.height_bucket,
+                i.canonical_key,
+                i.display_name,
+                pv.price,
+                pv.county,
+                pv.year,
+                pv.week_number,
+                FIRST_VALUE(pv.county) OVER (
+                    PARTITION BY i.canonical_key
+                    ORDER BY pv.price ASC NULLS LAST
+                ) AS min_county,
+                FIRST_VALUE(pv.county) OVER (
+                    PARTITION BY i.canonical_key
+                    ORDER BY pv.price DESC NULLS LAST
+                ) AS max_county
+            FROM items i
+            JOIN prices_voluntary pv ON pv.item_id = i.id AND pv.price > 0
+            WHERE {like_parts}
+        )
         SELECT
-            i.species,
-            i.height_bucket,
-            i.canonical_key,
-            i.display_name,
-            AVG(CASE WHEN pv.year=%s AND pv.week_number=%s THEN pv.price END) AS avg_cur,
-            AVG(CASE WHEN pv.year=%s AND pv.week_number=%s THEN pv.price END) AS avg_prev,
-            AVG(pv.price)   AS avg_all,
-            MIN(pv.price)   AS min_price,
-            MAX(pv.price)   AS max_price,
-            COUNT(pv.id)    AS total_count,
-            COUNT(CASE WHEN pv.year=%s AND pv.week_number=%s THEN 1 END) AS week_count
-        FROM items i
-        JOIN prices_voluntary pv ON pv.item_id = i.id AND pv.price > 0
-        WHERE {like_parts}
-        GROUP BY i.species, i.height_bucket, i.canonical_key, i.display_name
-        ORDER BY i.species, i.height_bucket NULLS LAST
-    """, (year, week, prev_year, prev_week, year, week, *like_params))
+            species,
+            height_bucket,
+            canonical_key,
+            display_name,
+            AVG(CASE WHEN year=%s AND week_number=%s THEN price END) AS avg_cur,
+            AVG(CASE WHEN year=%s AND week_number=%s THEN price END) AS avg_prev,
+            AVG(price)           AS avg_all,
+            MIN(price)           AS min_price,
+            MAX(price)           AS max_price,
+            MAX(min_county)      AS min_county,
+            MAX(max_county)      AS max_county,
+            COUNT(*)             AS total_count,
+            COUNT(CASE WHEN year=%s AND week_number=%s THEN 1 END) AS week_count
+        FROM raw
+        GROUP BY species, height_bucket, canonical_key, display_name
+        ORDER BY species, height_bucket NULLS LAST
+    """, (*like_params, year, week, prev_year, prev_week, year, week))
 
     rows = c.fetchall()
     conn.close()
@@ -754,6 +777,8 @@ def get_price_matrix(species_key):
             'avg_cur':        round(avg_cur, 2) if avg_cur else None,
             'min_price':      round(r['min_price'], 2) if r['min_price'] else None,
             'max_price':      round(r['max_price'], 2) if r['max_price'] else None,
+            'min_county':     r['min_county'] or None,
+            'max_county':     r['max_county'] or None,
             'trend':          trend,
             'total_count':    r['total_count'],
             'week_count':     r['week_count'],
@@ -783,57 +808,59 @@ def get_visit_stats():
     conn = get_db()
     c = _cur(conn)
 
+    # Azi
     c.execute("""
-        SELECT
-            COUNT(*)                                          AS total_azi,
-            COUNT(DISTINCT ip_hash)                           AS unici_azi,
-            SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days'
-                     THEN 1 ELSE 0 END)                      AS total_7z,
-            COUNT(DISTINCT CASE WHEN created_at >= NOW() - INTERVAL '7 days'
-                                THEN ip_hash END)             AS unici_7z,
-            SUM(CASE WHEN created_at >= NOW() - INTERVAL '30 days'
-                     THEN 1 ELSE 0 END)                      AS total_30z,
-            COUNT(DISTINCT CASE WHEN created_at >= NOW() - INTERVAL '30 days'
-                                THEN ip_hash END)             AS unici_30z
-        FROM visits
-        WHERE created_at >= CURRENT_DATE
+        SELECT COUNT(*) AS total, COUNT(DISTINCT ip_hash) AS unique_ips
+        FROM visits WHERE created_at >= CURRENT_DATE
     """)
-    row = _row(c.fetchone())
+    today = _row(c.fetchone())
 
-    # IP-uri unice pe ultimele 30 zile (pentru card principal)
+    # Ultimele 7 zile
     c.execute("""
-        SELECT COUNT(DISTINCT ip_hash) AS unici_30z_total
+        SELECT COUNT(*) AS total, COUNT(DISTINCT ip_hash) AS unique_ips
+        FROM visits WHERE created_at >= NOW() - INTERVAL '7 days'
+    """)
+    last_7d = _row(c.fetchone())
+
+    # Ultimele 30 zile
+    c.execute("""
+        SELECT COUNT(*) AS total, COUNT(DISTINCT ip_hash) AS unique_ips
+        FROM visits WHERE created_at >= NOW() - INTERVAL '30 days'
+    """)
+    last_30d = _row(c.fetchone())
+
+    # Top 10 pagini (30 zile)
+    c.execute("""
+        SELECT path, COUNT(*) AS cnt
         FROM visits
         WHERE created_at >= NOW() - INTERVAL '30 days'
-    """)
-    r30 = _row(c.fetchone())
-
-    # Top 8 pagini (ultimele 7 zile)
-    c.execute("""
-        SELECT path, COUNT(*) AS hits, COUNT(DISTINCT ip_hash) AS unici
-        FROM visits
-        WHERE created_at >= NOW() - INTERVAL '7 days'
         GROUP BY path
-        ORDER BY hits DESC
-        LIMIT 8
+        ORDER BY cnt DESC
+        LIMIT 10
     """)
-    top_pages = [_row(r) for r in c.fetchall()]
+    top_pages = [{'path': r['path'], 'cnt': int(r['cnt'])} for r in c.fetchall()]
 
-    # Vizitatori unici pe zi, ultimele 30 zile
+    # Vizite pe zi (30 zile)
     c.execute("""
-        SELECT DATE(created_at) AS zi, COUNT(DISTINCT ip_hash) AS unici
+        SELECT
+            DATE(created_at)        AS day,
+            COUNT(*)                AS total,
+            COUNT(DISTINCT ip_hash) AS unique_ips
         FROM visits
         WHERE created_at >= NOW() - INTERVAL '30 days'
         GROUP BY DATE(created_at)
-        ORDER BY zi
+        ORDER BY day
     """)
-    daily = [_row(r) for r in c.fetchall()]
+    daily = [
+        {'day': str(r['day']), 'total': int(r['total'] or 0), 'unique_ips': int(r['unique_ips'] or 0)}
+        for r in c.fetchall()
+    ]
 
     conn.close()
     return {
-        'azi':      {'total': int(row['total_azi'] or 0), 'unici': int(row['unici_azi'] or 0)},
-        '7z':       {'total': int(row['total_7z'] or 0),  'unici': int(row['unici_7z'] or 0)},
-        '30z':      {'total': int(row['total_30z'] or 0), 'unici': int(r30['unici_30z_total'] or 0)},
+        'today':    {'total': int(today['total'] or 0),    'unique_ips': int(today['unique_ips'] or 0)},
+        'last_7d':  {'total': int(last_7d['total'] or 0),  'unique_ips': int(last_7d['unique_ips'] or 0)},
+        'last_30d': {'total': int(last_30d['total'] or 0), 'unique_ips': int(last_30d['unique_ips'] or 0)},
         'top_pages': top_pages,
         'daily':     daily,
     }
