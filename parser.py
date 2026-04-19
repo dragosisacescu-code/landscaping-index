@@ -37,6 +37,100 @@ VAT_RATES = {
 
 VALID_CATEGORIES = list(VAT_RATES.keys())
 
+# ─── CATEGORIZARE DIRECTĂ (fără Claude) ──────────────────────────────────────
+
+_CONIFERE = ['thuja', 'picea', 'pinus', 'juniperus scopulorum', 'juniperus virginiana',
+             'juniperus chinensis', 'juniperus communis', 'juniperus sabina',
+             'chamaecyparis', 'taxus', 'abies', 'cedrus', 'cryptomeria',
+             'metasequoia', 'pseudotsuga', 'larix', 'sequoia']
+_TARATOARE = ['juniperus horizontalis', 'juniperus procumbens', 'juniperus conferta',
+              'hedera', 'vinca', 'cotoneaster dammeri', 'cotoneaster horizontalis',
+              'cotoneaster suecicus', 'ivy']
+_ARBUSTI = ['berberis', 'buxus', 'cornus', 'cotinus', 'deutzia', 'euonymus',
+            'forsythia', 'lagerstroemia', 'ligustrum', 'lonicera', 'magnolia',
+            'photinia', 'rosa', 'sambucus', 'spiraea', 'tamarix', 'viburnum',
+            'weigela', 'buddleja', 'chaenomeles', 'cotoneaster', 'abelia',
+            'syringa', 'hibiscus', 'hydrangea', 'philadelphus', 'potentilla',
+            'ribes', 'rhododendron', 'amelanchier', 'callicarpa', 'caryopteris',
+            'fothergilla', 'itea', 'kolkwitzia', 'leucothoe', 'nandina',
+            'perovskia', 'physocarpus', 'pieris', 'stachyurus', 'symphoricarpos']
+_GAZON = ['gazon', 'festuca', 'lolium', 'poa annua', 'agrostis', 'cynodon']
+
+
+def _detect_category(latin_name: str) -> str:
+    n = latin_name.lower().strip()
+    for k in _TARATOARE:
+        if k in n:
+            return 'Plante_taratoare'
+    for k in _CONIFERE:
+        if k in n:
+            return 'Conifere'
+    for k in _GAZON:
+        if k in n:
+            return 'Gazon'
+    for k in _ARBUSTI:
+        if k in n:
+            return 'Arbusti'
+    return 'Arbori'  # default pentru arbori foiosi
+
+
+def _parse_range_cm(val) -> tuple:
+    """Parsează '25-30' sau '500-600' sau '250' → (min_cm, max_cm)."""
+    if val is None:
+        return None, None
+    import re
+    s = str(val).replace('cm', '').strip()
+    m = re.match(r'^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)$', s)
+    if m:
+        return int(float(m.group(1))), int(float(m.group(2)))
+    m2 = re.match(r'^(\d+(?:\.\d+)?)$', s)
+    if m2:
+        v = int(float(m2.group(1)))
+        return v, v
+    return None, None
+
+
+def parse_excel_row_direct(latin_name: str, roman_name: str,
+                            diam_str, height_str) -> dict:
+    """
+    Parsează un rând structurat din Excel FĂRĂ apel Claude.
+    latin_name: coloana DENUMIRE LATINA
+    roman_name: coloana DENUMIRE ROMANA (poate fi None)
+    diam_str:   coloana D/CM  (poate fi diametru sau circumferinta)
+    height_str: coloana H/CM
+    Returnează un dict identic cu build_item_keys().
+    """
+    species  = latin_name.strip().title()
+    category = _detect_category(latin_name)
+
+    h_min, h_max = _parse_range_cm(height_str)
+    d_min, d_max = _parse_range_cm(diam_str)
+
+    # Conventia din sectorul peisagistic RO: D/CM = circumferinta trunchi pt arbori
+    # Pentru conifere/arbusti D/CM poate fi diametrul coroanei — stocam ca diameter
+    if category == 'Arbori':
+        circ_min, circ_max = d_min, d_max
+        diam_min, diam_max = None, None
+    else:
+        diam_min, diam_max = d_min, d_max
+        circ_min, circ_max = None, None
+
+    parsed = {
+        'species':            species,
+        'category':           category,
+        'unit':               'buc',
+        'height_min_cm':      h_min,
+        'height_max_cm':      h_max,
+        'root_type':          None,
+        'clt_size':           None,
+        'diameter_min_cm':    diam_min,
+        'diameter_max_cm':    diam_max,
+        'circumference_min_cm': circ_min,
+        'circumference_max_cm': circ_max,
+        'vat_included':       False,  # ofertele de pepiniera sunt de obicei fara TVA
+    }
+    return build_item_keys(parsed)
+
 
 def assign_bucket(value, buckets):
     """Atribuie o valoare bucket-ului standard corespunzator."""
