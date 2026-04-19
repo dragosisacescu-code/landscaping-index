@@ -580,6 +580,7 @@ def get_cascade_tree():
         FROM items i
         LEFT JOIN prices_voluntary pv ON pv.item_id = i.id
         GROUP BY i.category, i.species, i.canonical_key, i.level1_key, i.height_bucket
+        HAVING COUNT(pv.id) > 0
         ORDER BY i.category, i.species, i.height_bucket
     """)
     rows = c.fetchall()
@@ -611,18 +612,27 @@ def get_cascade_tree():
 
 def get_price_matrix(species_key):
     """
-    Pentru o specie/varietate (species_key = level1_key sau canonical_key prefix),
-    returneaza preturile grupate pe dimensiuni cu trend fata de saptamana precedenta.
+    species_key: un singur key SAU mai multe separate prin virgulă.
+    Returneaza preturile grupate pe specie+dimensiune cu trend.
     """
+    keys = [k.strip() for k in species_key.split(',') if k.strip()]
+    if not keys:
+        return []
+
     conn = get_db()
     c = _cur(conn)
     week, year = current_week()
     prev_week  = week - 1 if week > 1 else 52
     prev_year  = year if week > 1 else year - 1
 
-    # Preturi curente (saptamana aceasta + precedenta)
-    c.execute("""
+    like_parts  = ' OR '.join(['(i.level1_key LIKE %s OR i.canonical_key LIKE %s)'] * len(keys))
+    like_params = []
+    for k in keys:
+        like_params.extend([k + '%', k + '%'])
+
+    c.execute(f"""
         SELECT
+            i.species,
             i.height_bucket,
             i.canonical_key,
             i.display_name,
@@ -635,11 +645,10 @@ def get_price_matrix(species_key):
             COUNT(CASE WHEN pv.year=%s AND pv.week_number=%s THEN 1 END) AS week_count
         FROM items i
         JOIN prices_voluntary pv ON pv.item_id = i.id
-        WHERE i.level1_key LIKE %s OR i.canonical_key LIKE %s
-        GROUP BY i.height_bucket, i.canonical_key, i.display_name
-        ORDER BY i.height_bucket NULLS LAST
-    """, (year, week, prev_year, prev_week, year, week,
-          species_key + '%', species_key + '%'))
+        WHERE {like_parts}
+        GROUP BY i.species, i.height_bucket, i.canonical_key, i.display_name
+        ORDER BY i.species, i.height_bucket NULLS LAST
+    """, (year, week, prev_year, prev_week, year, week, *like_params))
 
     rows = c.fetchall()
     conn.close()
@@ -653,6 +662,7 @@ def get_price_matrix(species_key):
             trend = round(avg_cur - avg_prev, 2)
 
         result.append({
+            'species':        r['species'] or '',
             'height_bucket':  r['height_bucket'] or 'generic',
             'canonical_key':  r['canonical_key'],
             'display_name':   r['display_name'],
