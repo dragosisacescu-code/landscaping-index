@@ -22,6 +22,16 @@ def _cur(conn):
     """Cursor care returneaza randuri ca dictionare."""
     return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
+def _row(row):
+    """Converteste un rand din DB la dict, cu datetime -> ISO string."""
+    result = {}
+    for k, v in dict(row).items():
+        if isinstance(v, datetime):
+            result[k] = v.isoformat()
+        else:
+            result[k] = v
+    return result
+
 
 # ─── INITIALIZARE SCHEMA ──────────────────────────────────────────────────────
 
@@ -181,7 +191,7 @@ def get_all_items():
     c.execute("SELECT * FROM items ORDER BY category, species, height_bucket")
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row(r) for r in rows]
 
 
 def delete_item(item_id):
@@ -463,7 +473,7 @@ def get_county_stats(item_level1_key):
     """, (item_level1_key,))
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row(r) for r in rows]
 
 
 # ─── ADMIN ────────────────────────────────────────────────────────────────────
@@ -503,7 +513,7 @@ def get_banned_ips():
     """)
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row(r) for r in rows]
 
 
 def unban_ip(ip_hash, item_id):
@@ -523,7 +533,7 @@ def get_scraping_sources():
     c.execute("SELECT * FROM scraping_sources ORDER BY name")
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row(r) for r in rows]
 
 
 def update_source_status(source_id, last_scraped=None, last_error=None):
