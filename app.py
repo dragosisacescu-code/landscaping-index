@@ -323,6 +323,20 @@ def _add_from_text_and_price(text, price_raw, county, ip_hash, results, bulk=Fal
         results['skipped'] += 1
 
 
+def _save_item(keys, net_price, county, ip_hash, results):
+    """Salveaza un item deja parsat si un pret net (fara TVA) in DB."""
+    if net_price is None or net_price <= 0:
+        results['skipped'] += 1
+        return
+    item_id, _ = db.get_or_create_item(keys)
+    ok, msg = db.add_voluntary_price(item_id, net_price, county, ip_hash, bulk=True)
+    if ok:
+        results['ok'] += 1
+    else:
+        results['warnings'].append(f"{keys['display_name']}: {msg}")
+        results['skipped'] += 1
+
+
 def _process_excel(file_obj, county, ip_hash, results):
     if not HAS_EXCEL:
         results['errors'].append('openpyxl nu este instalat')
@@ -405,6 +419,10 @@ def _process_excel(file_obj, county, ip_hash, results):
 
         data_rows = rows[header_row_idx + 1:]
 
+        # Colecteaza toate descrierile + preturile valide, apoi trimite UN SINGUR batch
+        batch_descs  = []
+        batch_prices = []
+
         for row in data_rows:
             if not row:
                 continue
@@ -416,7 +434,6 @@ def _process_excel(file_obj, county, ip_hash, results):
             if not name_val or name_val.lower() in ('none', 'nan'):
                 continue
 
-            # Sare titluri de sectiune; actualizeaza contextul
             if any(sw in name_val.lower() for sw in SECTION_WORDS):
                 for kw, cat in CATEGORY_MAP.items():
                     if kw in name_val.lower():
@@ -431,7 +448,6 @@ def _process_excel(file_obj, county, ip_hash, results):
                 results['skipped'] += 1
                 continue
 
-            # Descriere bogata: [romana] + latina + inaltime + diam + [sectiune]
             desc_parts = []
             if roman_col is not None and row[roman_col]:
                 roman_val = str(row[roman_col]).strip()
@@ -449,7 +465,24 @@ def _process_excel(file_obj, county, ip_hash, results):
             if current_section:
                 desc_parts.append(current_section)
 
-            _add_from_text_and_price(' '.join(desc_parts), price_val, county, ip_hash, results, bulk=True)
+            batch_descs.append(' '.join(desc_parts))
+            batch_prices.append(price_val)
+
+        # Trimite in batch-uri de 20 → max 3-4 apeluri API pentru un fisier tipic
+        BATCH = 20
+        from parser import parse_batch_with_claude, build_item_keys, deduct_vat
+        for start in range(0, len(batch_descs), BATCH):
+            chunk_descs  = batch_descs[start:start + BATCH]
+            chunk_prices = batch_prices[start:start + BATCH]
+            parsed_list  = parse_batch_with_claude(chunk_descs)
+            for parsed, price_val in zip(parsed_list, chunk_prices):
+                if not parsed:
+                    results['skipped'] += 1
+                    continue
+                keys = build_item_keys(parsed)
+                net_price = deduct_vat(float(price_val), keys['category'],
+                                       vat_included=parsed.get('vat_included'))
+                _save_item(keys, net_price, county, ip_hash, results)
 
     except Exception as e:
         results['errors'].append(f'Eroare Excel: {str(e)[:150]}')
@@ -470,10 +503,10 @@ def _process_pdf(file_obj, county, ip_hash, results):
 
     HEADER_KEYWORDS = ['denumire', 'produs', 'species', 'name', 'item',
                        'planta', 'plant', 'description']
-    PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei', 'tarif', 'euro']
-    HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)', 'inaltime (cm)']
-    DIAM_KEYWORDS   = ['diam', 'diametru', 'diameter', 'circumferinta', 'circ']
-    # Cuvinte care identifica randuri de sectiune / total (de sarit)
+    PRICE_KEYWORDS  = ['pret', 'price', 'valoare', 'cost', 'ron', 'lei', 'tarif', 'euro',
+                       'p.u.', 'p.u', 'pu ', 'unit', 'unitar']
+    HEIGHT_KEYWORDS = ['h/cm', 'inaltime', 'height', 'h cm', 'h(cm)', 'inaltime (cm)', 'h/']
+    DIAM_KEYWORDS   = ['diam', 'ø', '©', 'diametru', 'diameter', 'circumferinta', 'circ', 'd/']
     SECTION_WORDS   = ['total', 'subtotal', 'oferta', 'categorie', 'section', 'grupa']
     # Categorii care dau context de sectiune
     CATEGORY_MAP    = {
@@ -487,7 +520,9 @@ def _process_pdf(file_obj, county, ip_hash, results):
     try:
         import re
         content = file_obj.read()
-        current_section = ''   # context de sectiune detectat din titluri
+        current_section = ''
+        pdf_batch_descs  = []
+        pdf_batch_prices = []
 
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             for page in pdf.pages:
@@ -573,9 +608,7 @@ def _process_pdf(file_obj, county, ip_hash, results):
                         if not name_val or name_val.lower() in ('none', 'nan'):
                             continue
 
-                        # Sare randuri de sectiune / total
                         if any(sw in name_val.lower() for sw in SECTION_WORDS):
-                            # Actualizeaza sectiunea curenta
                             for kw, cat in CATEGORY_MAP.items():
                                 if kw in name_val.lower():
                                     current_section = cat
@@ -591,36 +624,42 @@ def _process_pdf(file_obj, county, ip_hash, results):
                             results['skipped'] += 1
                             continue
 
-                        # Construieste descriere bogata:
-                        # [denumire_romana] + denumire_latina + inaltime + circumferinta + [sectiune]
                         desc_parts = []
-
-                        # Adauga denumirea romana (ajuta AI sa categoriseasca)
                         if roman_col is not None and roman_col < len(row) and row[roman_col]:
                             roman_val = str(row[roman_col]).strip()
                             if roman_val and roman_val.lower() not in ('none', 'nan', ''):
                                 desc_parts.append(roman_val)
-
                         desc_parts.append(name_val)
-
                         if height_col is not None and height_col < len(row) and row[height_col]:
                             h = str(row[height_col]).strip()
                             if h and h.lower() not in ('none', '0', ''):
                                 desc_parts.append(f"{h}cm")
-
                         if diam_col is not None and diam_col < len(row) and row[diam_col]:
                             d = str(row[diam_col]).strip()
                             if d and d.lower() not in ('none', '0', ''):
                                 desc_parts.append(f"circ {d}cm")
-
-                        # Adauga contextul de sectiune ca hint pentru parser
                         if current_section:
                             desc_parts.append(current_section)
 
-                        _add_from_text_and_price(
-                            ' '.join(desc_parts), price_val,
-                            county, ip_hash, results, bulk=True
-                        )
+                        pdf_batch_descs.append(' '.join(desc_parts))
+                        pdf_batch_prices.append(price_val)
+
+        # Batch AI pentru tot PDF-ul
+        from parser import parse_batch_with_claude, build_item_keys, deduct_vat
+        BATCH = 20
+        for start in range(0, len(pdf_batch_descs), BATCH):
+            chunk_descs  = pdf_batch_descs[start:start + BATCH]
+            chunk_prices = pdf_batch_prices[start:start + BATCH]
+            parsed_list  = parse_batch_with_claude(chunk_descs)
+            for parsed, price_val in zip(parsed_list, chunk_prices):
+                if not parsed:
+                    results['skipped'] += 1
+                    continue
+                keys = build_item_keys(parsed)
+                net_price = deduct_vat(float(_parse_price_float(price_val) or 0),
+                                       keys['category'], vat_included=parsed.get('vat_included'))
+                _save_item(keys, net_price, county, ip_hash, results)
+
     except Exception as e:
         results['errors'].append(f'Eroare PDF: {str(e)[:150]}')
 
