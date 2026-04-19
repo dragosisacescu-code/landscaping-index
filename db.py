@@ -103,34 +103,86 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_items_level1    ON items(level1_key)",
         "CREATE INDEX IF NOT EXISTS idx_items_level2    ON items(level2_key)",
         "CREATE INDEX IF NOT EXISTS idx_violations_ip   ON ip_violations(ip_hash, item_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_url ON scraping_sources(base_url)",
     ]:
         c.execute(stmt)
 
-    # Populeaza surse daca nu exista
-    c.execute("SELECT COUNT(*) as cnt FROM scraping_sources")
-    if c.fetchone()['cnt'] == 0:
-        sources = [
-            ('Hornbach',        'https://www.hornbach.ro'),
-            ('Dedeman',         'https://www.dedeman.ro'),
-            ('Leroy Merlin',    'https://www.leroymerlin.ro'),
-            ('Brico Depot',     'https://www.bricodepot.ro'),
-            ('OLX',             'https://www.olx.ro'),
-            ('eMAG',            'https://www.emag.ro'),
-            ('Planteo',         'https://www.planteo.ro'),
-            ('Gradina Max',     'https://www.gradinamax.ro'),
-            ('Robakker',        'https://www.robakker.ro'),
-            ('Verdena',         'https://www.verdena.ro'),
-            ('SweetGarden',     'https://www.sweetgarden.ro'),
-            ('Garden Services', 'https://www.gardenservices.ro'),
-            ('Parcuri',         'https://www.parcuri.ro'),
-            ('Sieberz',         'https://www.sieberz.ro'),
-            ('Yurta',           'https://www.yurta.ro'),
-            ('Pepiniera Mizil', 'https://www.pepinieram.ro'),
-        ]
-        c.executemany(
-            "INSERT INTO scraping_sources (name, base_url) VALUES (%s, %s)",
-            sources
-        )
+    # Populeaza / actualizeaza surse (INSERT ignore duplicat pe base_url)
+    sources = [
+        # ── MAGAZINE BRICOLAJ / RETAIL ──────────────────────────────────────
+        ('Hornbach',                'https://www.hornbach.ro'),
+        ('Dedeman',                 'https://www.dedeman.ro'),
+        ('Leroy Merlin',            'https://www.leroymerlin.ro'),
+        ('Brico Depot',             'https://www.bricodepot.ro'),
+        ('eMAG',                    'https://www.emag.ro'),
+
+        # ── PEPINIERE & FURNIZORI PLANTE ─────────────────────────────────────
+        ('Planteo',                 'https://www.planteo.ro'),
+        ('Verdena',                 'https://www.verdena.ro'),
+        ('Robakker',                'https://www.robakker.ro'),
+        ('SweetGarden',             'https://www.sweetgarden.ro'),
+        ('Gradina Max',             'https://www.gradinamax.ro'),
+        ('Garden Services',         'https://www.gardenservices.ro'),
+        ('Parcuri & Gradini',       'https://www.parcuri.ro'),
+        ('Sieberz',                 'https://www.sieberz.ro'),
+        ('Yurta',                   'https://www.yurta.ro'),
+        ('Pepiniera Mizil',         'https://www.pepinieram.ro'),
+        ('Flora Dendro',            'https://www.floradendro.ro'),
+        ('Pepiniera Lutic',         'https://www.pepinierelutic.ro'),
+        ('Pepiniera Verona',        'https://www.pepinieraverona.ro'),
+        ('PlantCraft',              'https://www.plantcraft.ro'),
+        ('Pepiniera Online',        'https://www.pepinieraonline.ro'),
+        ('Gradin Mea',              'https://www.gradinmea.ro'),
+        ('Teraplant',               'https://www.teraplant.ro'),
+        ('Plante Ornamentale',      'https://www.plante-ornamentale.ro'),
+        ('Pepiniera Toplita',       'https://www.pepinieratoplita.ro'),
+        ('Pepiniera Barlad',        'https://www.pepiniera-barlad.ro'),
+        ('Pepiniera Stefanesti',    'https://www.pepiniera-stefanesti.ro'),
+        ('TreeTime',                'https://www.treetime.ro'),
+        ('Green Concept',           'https://www.greenconcept.ro'),
+        ('Arbor Design',            'https://www.arbordesign.ro'),
+
+        # ── MATERIALE: GAZON, SUBSTRATURI, GEOTEXTIL ────────────────────────
+        ('Gazon Online',            'https://www.gazon.ro'),
+        ('Gazon Rapid',             'https://www.gazonrapid.ro'),
+        ('Substrat de Turba',       'https://www.substratedeturba.ro'),
+        ('Cocos Turba',             'https://www.cocosturba.ro'),
+        ('Geotextil Shop',          'https://www.geotextil.ro'),
+        ('Folie Iaz',               'https://www.folieiaz.ro'),
+        ('Piatră Decorativă',       'https://www.piatra-decorativa.ro'),
+        ('Nisip & Pietriș',         'https://www.nisipsipietris.ro'),
+        ('Agrola',                  'https://www.agrola.ro'),
+        ('Agro Fito',               'https://www.agrofito.ro'),
+
+        # ── IRIGAȚII & TEHNIC ────────────────────────────────────────────────
+        ('Irigații Pro',            'https://www.irigatii.ro'),
+        ('Hunter Irigații',         'https://www.hunter-romania.ro'),
+        ('Rain Bird Romania',       'https://www.rainbird.ro'),
+        ('Tehno Irigații',          'https://www.tehnoirigatii.ro'),
+        ('Aqua Garden',             'https://www.aquagarden.ro'),
+
+        # ── ANUNȚURI / MARKETPLACE ───────────────────────────────────────────
+        ('OLX Gradinarit',          'https://www.olx.ro/servicii/gradinarit/'),
+        ('OLX Plante',              'https://www.olx.ro/gradina/plante-flori/'),
+        ('Publi24 Gradinarit',      'https://www.publi24.ro/anunturi/servicii/gradinarit/'),
+        ('Anuntul Gradinarit',      'https://www.anuntul.ro/servicii/gradinarit/'),
+
+        # ── MANOPERĂ & SERVICII LANDSCAPING ─────────────────────────────────
+        # Prețuri manoperă: plantare, tuns gard viu, gazonare, tăieri etc.
+        ('OLX Servicii Peisagistic','https://www.olx.ro/servicii/peisagistica/'),
+        ('Publi24 Peisagistica',    'https://www.publi24.ro/anunturi/servicii/peisagistica/'),
+        ('Merxpert Devize',         'https://www.merxpert.ro'),
+        ('Deviz Online',            'https://www.devizonline.ro'),
+        ('Catalog Prețuri Deviz',   'https://www.catalogpret.ro'),
+        ('BauPreis Romania',        'https://www.baupreis.ro'),
+        ('Indicativ Construcții',   'https://www.indicativ.ro'),
+    ]
+    c.executemany(
+        """INSERT INTO scraping_sources (name, base_url)
+           VALUES (%s, %s)
+           ON CONFLICT (base_url) DO NOTHING""",
+        sources
+    )
 
     conn.commit()
     conn.close()
