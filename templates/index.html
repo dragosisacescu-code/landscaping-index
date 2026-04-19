@@ -23,14 +23,9 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
 
-    /* ── NAV ── */
     nav {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      height: 52px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; height: 52px;
       position: sticky; top: 0; z-index: 100;
     }
     .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--green); text-decoration: none; }
@@ -39,162 +34,150 @@
     .nav-links a { color: var(--text-sec); text-decoration: none; font-size: 13px; }
     .nav-links a:hover { color: var(--green); }
 
-    /* ── HERO ── */
     .hero {
       background: linear-gradient(135deg, var(--green) 0%, #0d3d24 100%);
-      color: #fff;
-      padding: 60px 24px 48px;
-      text-align: center;
+      color: #fff; padding: 48px 24px 36px; text-align: center;
     }
-    .hero h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
-    .hero p  { font-size: 16px; opacity: .85; max-width: 560px; margin: 0 auto 28px; line-height: 1.6; }
+    .hero h1 { font-size: 28px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 10px; }
+    .hero p  { font-size: 15px; opacity: .85; max-width: 520px; margin: 0 auto 22px; line-height: 1.6; }
     .hero-stats {
-      display: inline-flex; gap: 32px;
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.2);
-      border-radius: var(--radius);
-      padding: 14px 28px;
-      margin-bottom: 28px;
+      display: inline-flex; gap: 28px;
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+      border-radius: var(--radius); padding: 12px 24px; margin-bottom: 22px;
     }
-    .hero-stat { text-align: center; }
-    .hero-stat .num { font-size: 26px; font-weight: 800; }
+    .hero-stat .num { font-size: 24px; font-weight: 800; }
     .hero-stat .lbl { font-size: 11px; opacity: .75; text-transform: uppercase; letter-spacing: .5px; }
     .btn-primary {
-      background: #fff; color: var(--green);
-      border: none; border-radius: var(--radius);
-      padding: 12px 28px; font-size: 14px; font-weight: 700;
-      cursor: pointer; text-decoration: none; display: inline-block;
-      transition: opacity .15s;
+      background: #fff; color: var(--green); border: none; border-radius: var(--radius);
+      padding: 10px 24px; font-size: 13px; font-weight: 700; cursor: pointer;
+      text-decoration: none; display: inline-block;
     }
-    .btn-primary:hover { opacity: .9; }
 
-    /* ── CONTAINER ── */
-    .container { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px 24px; }
 
-    /* ── CARD ── */
     .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 20px 24px;
-      margin-bottom: 20px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 16px 20px; margin-bottom: 16px;
     }
-    .card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-sec); margin-bottom: 16px; }
+    .card-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--text-sec); margin-bottom: 14px;
+    }
 
-    /* ── CONTROLS ── */
-    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
     select, input[type=text], input[type=number] {
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 7px 10px;
-      font-size: 13px;
-      background: var(--surface);
-      color: var(--text);
-      outline: none;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 7px 10px; font-size: 13px; background: var(--surface);
+      color: var(--text); outline: none;
     }
     select:focus, input:focus { border-color: var(--green-lt); }
     .btn {
-      border-radius: var(--radius);
-      padding: 7px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      transition: background .15s;
+      border-radius: var(--radius); padding: 7px 14px; font-size: 13px;
+      font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); transition: background .15s;
     }
     .btn:hover { background: var(--bg); }
     .btn-green { background: var(--green); color: #fff; border-color: var(--green); }
     .btn-green:hover { background: var(--green-lt); }
-    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
 
-    /* ── TABS ── */
-    .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
-    .tab { padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-sec); border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab.active { color: var(--green); border-bottom-color: var(--green); }
+    /* ── CASCADE NAVIGATION ── */
+    .cascade-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 8px; cursor: pointer; border-radius: 5px;
+      font-size: 13px; transition: background .12s; user-select: none;
+    }
+    .cascade-item:hover { background: #e8f5e9; }
+    .cascade-item.active { background: #c8e6c9; font-weight: 600; color: var(--green); }
+    .cascade-item .ci-arrow { font-size: 9px; margin-left: auto; color: #aaa; transition: transform .15s; }
+    .cascade-item.open .ci-arrow { transform: rotate(90deg); }
+    .cascade-children { margin-left: 14px; border-left: 2px solid #e8e8e8; padding-left: 8px; }
+    .ci-count { font-size: 10px; background: #e8f5e9; color: var(--green); border-radius: 10px; padding: 1px 6px; }
+    .ci-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 2px; }
 
-    /* ── CHARTS ── */
-    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 768px) { .charts-row { grid-template-columns: 1fr; } }
-    .chart-wrap { position: relative; height: 260px; }
-    .chart-label { font-size: 11px; color: var(--text-sec); margin-bottom: 6px; font-weight: 600; }
+    /* ── PRICE TABLE ── */
+    .price-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .price-table th {
+      background: var(--bg); color: var(--text-sec); padding: 8px 12px;
+      text-align: left; font-size: 11px; text-transform: uppercase;
+      letter-spacing: .4px; border-bottom: 2px solid var(--border);
+    }
+    .price-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    .price-table tr:hover td { background: #f5fbf7; cursor: pointer; }
+    .price-table tr.selected td { background: #e8f5ee; }
+    .price-table td.dim { font-weight: 600; color: var(--green); }
+    .price-table td.price-val { font-weight: 700; font-size: 14px; }
+    .trend-up { color: #e53935; font-weight: 600; }
+    .trend-dn { color: #43a047; font-weight: 600; }
+    .trend-eq { color: #999; }
+    .no-data { color: #ccc; font-style: italic; }
 
-    /* ── COUNTY TABLE ── */
-    .county-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .county-table th { text-align: left; padding: 8px 10px; background: var(--bg); color: var(--text-sec); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
-    .county-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
-    .county-table tr.selected td { background: #e8f5ee; }
-    .bar-mini { height: 6px; background: var(--green-lt); border-radius: 3px; }
+    /* ── CHART ── */
+    .chart-box { margin-top: 12px; background: #fafcfa; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+    .chart-box-title { font-size: 12px; font-weight: 600; color: var(--green); margin-bottom: 4px; }
+    .chart-box-sub   { font-size: 11px; color: var(--text-sec); margin-bottom: 10px; }
+
+    /* ── TWO-COLUMN LAYOUT ── */
+    .two-col { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
 
     /* ── CATALOG TABLE ── */
     .catalog-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .catalog-table th { text-align: left; padding: 9px 12px; background: var(--bg); color: var(--text-sec); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); position: sticky; top: 52px; }
-    .catalog-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    .catalog-table th {
+      text-align: left; padding: 8px 12px; background: var(--bg);
+      color: var(--text-sec); font-size: 11px; text-transform: uppercase;
+      letter-spacing: .4px; border-bottom: 1px solid var(--border);
+    }
+    .catalog-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
     .catalog-table tr:hover td { background: #f9fafb; }
     .badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-    .badge-green  { background: #d4edda; color: #1a5c3a; }
-    .badge-blue   { background: #d0e4ff; color: #1c4f9c; }
-    .badge-orange { background: #fde8cc; color: #b05a10; }
-    .badge-gray   { background: #e8eaed; color: #5a6270; }
+    .badge-green  { background: #d4edda; color: var(--green); }
+    .badge-gray   { background: #e8eaed; color: var(--text-sec); }
 
-    /* ── CONTRIBUTE ── */
+    /* ── CONTRIBUTE / UPLOAD ── */
     .contribute-form { display: grid; gap: 12px; max-width: 560px; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .form-label { font-size: 12px; color: var(--text-sec); margin-bottom: 4px; font-weight: 600; }
     .preview-box {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      font-size: 13px;
-      min-height: 40px;
-      color: var(--text-sec);
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 10px 14px; font-size: 13px; min-height: 40px; color: var(--text-sec);
     }
     .preview-box.identified { color: var(--green); font-weight: 600; border-color: var(--green-lt); }
     .preview-box.error { color: #c0392b; border-color: #e74c3c; }
     .alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-top: 8px; }
-    .alert-success { background: #d4edda; color: #1a5c3a; }
+    .alert-success { background: #d4edda; color: var(--green); }
     .alert-error   { background: #fde8cc; color: #8b3a00; }
-
-    /* ── UPLOAD ── */
     .upload-zone {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 32px;
-      text-align: center;
-      cursor: pointer;
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 28px; text-align: center; cursor: pointer;
       transition: border-color .15s, background .15s;
     }
     .upload-zone:hover, .upload-zone.drag { border-color: var(--green-lt); background: #f0f8f4; }
     .upload-zone input { display: none; }
     .upload-zone p { color: var(--text-sec); font-size: 13px; margin-top: 8px; }
     .upload-results { font-size: 13px; margin-top: 12px; }
-    .upload-results .ok     { color: var(--green); font-weight: 600; }
-    .upload-results .warn   { color: var(--orange); }
-    .upload-results .err    { color: #c0392b; }
+    .upload-results .ok   { color: var(--green); font-weight: 600; }
+    .upload-results .warn { color: var(--orange); }
+    .upload-results .err  { color: #c0392b; }
 
-    /* ── FOOTER ── */
-    footer { text-align: center; padding: 24px; color: var(--text-sec); font-size: 12px; border-top: 1px solid var(--border); margin-top: 20px; }
-
-    /* ── SEARCH ── */
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
     .search-wrap { position: relative; }
     .search-wrap input { padding-left: 30px; width: 220px; }
     .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-sec); }
 
-    /* ── LEGEND ── */
-    .legend { display: flex; gap: 16px; font-size: 12px; flex-wrap: wrap; }
-    .legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-sec); }
-    .legend-dot  { width: 10px; height: 10px; border-radius: 50%; }
+    footer { text-align: center; padding: 20px; color: var(--text-sec); font-size: 12px; border-top: 1px solid var(--border); margin-top: 16px; }
+    .breadcrumb { font-size: 12px; color: var(--text-sec); margin-bottom: 10px; }
+    .breadcrumb span { color: var(--green); font-weight: 600; }
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--text-sec); }
+    .empty-state .emoji { font-size: 40px; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
   </style>
 </head>
 <body>
 
-<!-- NAV -->
 <nav>
   <a class="logo" href="/">
-    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 28 28" fill="none">
       <circle cx="14" cy="14" r="13" fill="#e8f5ee"/>
       <path d="M14 22V12" stroke="#1a5c3a" stroke-width="2" stroke-linecap="round"/>
       <path d="M14 16 C14 16 10 13 8 10 C10 9 13 11 14 13" fill="#2d8a5a"/>
@@ -204,15 +187,13 @@
     Landscaping Index RO
   </a>
   <div class="nav-links">
-    <a href="#grafic">Grafic</a>
-    <a href="#catalog">Catalog</a>
+    <a href="#preturi">Prețuri</a>
     <a href="#contribuie">Contribuie</a>
     <a href="#upload">Upload</a>
     <a href="/admin" style="color:var(--green);font-weight:600;">Admin</a>
   </div>
 </nav>
 
-<!-- HERO -->
 <section class="hero">
   <h1>Observatorul de Prețuri Landscaping România</h1>
   <p>Date reale de piață, colectate săptămânal din surse online și voluntare. Anonim. Gratuit. Transparent.</p>
@@ -222,7 +203,7 @@
       <div class="lbl">Prețuri Indexate</div>
     </div>
     <div class="hero-stat">
-      <div class="num" id="hero-items">{{ categories.values() | map('length') | sum if categories else 0 }}</div>
+      <div class="num">{{ categories.values() | map('length') | sum if categories else 0 }}</div>
       <div class="lbl">Produse în Catalog</div>
     </div>
     <div class="hero-stat">
@@ -233,142 +214,29 @@
   <a href="#contribuie" class="btn-primary">Contribuie cu prețul tău</a>
 </section>
 
-<!-- GRAFIC -->
-<section class="container" id="grafic">
-  <div class="card">
-    <div class="card-title">Evoluție Prețuri — 3 Ani</div>
+<!-- PRETURI — cascada + tabel -->
+<section class="container" id="preturi">
+  <div class="two-col">
 
-    <!-- Controale -->
-    <div class="controls">
-      <div>
-        <div class="form-label">Produs</div>
-        <select id="item-select" onchange="loadChart()">
-          <option value="">— Selectează produs —</option>
-          {% for cat, items in categories.items() %}
-            <optgroup label="{{ cat }}">
-              {% for item in items %}
-                <option value="{{ item.level1_key }}" data-name="{{ item.display_name }}">
-                  {{ item.display_name }}
-                </option>
-              {% endfor %}
-            </optgroup>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <div class="form-label">Județ</div>
-        <select id="county-select" onchange="loadChart()">
-          <option value="national">Național</option>
-          {% for county in counties %}
-            <option value="{{ county }}">{{ county }}</option>
-          {% endfor %}
-        </select>
-        <button class="btn btn-sm" onclick="detectCounty()" style="margin-left:6px;">⚡ Auto</button>
-      </div>
-      <div style="margin-left:auto;">
-        <div class="form-label">Agregare</div>
-        <select id="level-select" onchange="loadChart()">
-          <option value="1">Nivel 1 — Specie + Înălțime</option>
-          <option value="2">Nivel 2 — + Tip Rădăcină</option>
-        </select>
+    <!-- Cascada botanica -->
+    <div class="card" style="padding:12px;">
+      <div class="card-title">Catalog Prețuri</div>
+      <div id="cascade-root">
+        <div style="color:var(--text-sec);font-size:12px;padding:8px;">⏳ Se încarcă...</div>
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="tabs">
-      <div class="tab active" onclick="switchTab('national',this)">Vedere Generală</div>
-      <div class="tab" onclick="switchTab('county',this)">Național vs. Județ</div>
-      <div class="tab" onclick="switchTab('counties',this)">Clasament Județe</div>
-    </div>
-
-    <!-- Tab: National -->
-    <div id="tab-national">
-      <div class="chart-wrap">
-        <div id="chart-national"></div>
-      </div>
-    </div>
-
-    <!-- Tab: County comparison -->
-    <div id="tab-county" style="display:none;">
-      <div class="charts-row">
-        <div>
-          <div class="chart-label">🌍 Național</div>
-          <div class="chart-wrap"><div id="chart-nat2"></div></div>
-        </div>
-        <div>
-          <div class="chart-label" id="county-chart-label">📍 Județ Selectat</div>
-          <div class="chart-wrap"><div id="chart-local"></div></div>
+    <!-- Panou prețuri -->
+    <div id="price-panel">
+      <div class="card" id="price-main-card">
+        <div class="empty-state">
+          <div class="emoji">🌿</div>
+          <h3>Selectează o specie din catalog</h3>
+          <p>Navighează: Categorie → Gen → Specie → Varietate</p>
         </div>
       </div>
     </div>
 
-    <!-- Tab: County ranking -->
-    <div id="tab-counties" style="display:none;">
-      <table class="county-table" id="county-table">
-        <thead>
-          <tr>
-            <th>#</th><th>Județ</th><th>Contribuții</th><th>Distribuție</th><th>Preț Mediu</th>
-          </tr>
-        </thead>
-        <tbody id="county-tbody">
-          <tr><td colspan="5" style="color:var(--text-sec);padding:20px;">Selectează un produs pentru a vedea clasamentul.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<!-- CATALOG -->
-<section class="container" id="catalog">
-  <div class="card">
-    <div class="card-title">Catalog Produse</div>
-    <div class="controls">
-      <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="catalog-search" placeholder="Caută produs..." oninput="filterCatalog()" />
-      </div>
-      <select id="catalog-cat-filter" onchange="filterCatalog()">
-        <option value="">Toate categoriile</option>
-        {% for cat in categories.keys() %}
-          <option value="{{ cat }}">{{ cat }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="catalog-table" id="catalog-table">
-        <thead>
-          <tr>
-            <th>Produs</th>
-            <th>Categorie</th>
-            <th>Înălțime</th>
-            <th>Rădăcină</th>
-            <th>CLT</th>
-            <th>Unitate</th>
-            <th>Acțiune</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for cat, items in categories.items() %}
-            {% for item in items %}
-            <tr data-cat="{{ cat }}" data-name="{{ item.display_name | lower }}">
-              <td><strong>{{ item.display_name }}</strong></td>
-              <td><span class="badge badge-green">{{ cat }}</span></td>
-              <td>{{ item.height_bucket or '—' }}</td>
-              <td>{{ item.root_type or '—' }}</td>
-              <td>{{ item.clt_size or '—' }}</td>
-              <td><span class="badge badge-gray">{{ item.unit }}</span></td>
-              <td>
-                <button class="btn btn-sm btn-green"
-                  onclick="selectItem('{{ item.level1_key }}','{{ item.display_name }}')">
-                  📊 Vezi grafic
-                </button>
-              </td>
-            </tr>
-            {% endfor %}
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
   </div>
 </section>
 
@@ -382,8 +250,7 @@
     <div class="contribute-form">
       <div>
         <div class="form-label">Descrie produsul (text liber)</div>
-        <input type="text" id="contrib-text" placeholder="ex: thuja 150-200cm ghiveci 10L" style="width:100%;"
-          oninput="debouncePreview()" />
+        <input type="text" id="contrib-text" placeholder="ex: thuja 150-200cm ghiveci 10L" style="width:100%;" oninput="debouncePreview()" />
       </div>
       <div>
         <div class="form-label">Produs identificat</div>
@@ -418,7 +285,7 @@
   <div class="card">
     <div class="card-title">Upload Fișier cu Prețuri</div>
     <p style="color:var(--text-sec);font-size:13px;margin-bottom:16px;">
-      Acceptăm Excel (.xlsx), PDF și imagini (JPG, PNG). Agentul AI parsează automat. Ce nu poate fi înțeles este ignorat cu feedback.
+      Acceptăm Excel (.xlsx), PDF și imagini (JPG, PNG). Agentul AI parsează automat.
     </p>
     <div>
       <div class="form-label" style="margin-bottom:8px;">Județul pentru datele din fișier</div>
@@ -430,7 +297,8 @@
       </select>
     </div>
     <div style="margin-top:12px;">
-      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('upload-input').click()"
+      <div class="upload-zone" id="upload-zone"
+        onclick="document.getElementById('upload-input').click()"
         ondragover="event.preventDefault();this.classList.add('drag')"
         ondragleave="this.classList.remove('drag')"
         ondrop="handleDrop(event)">
@@ -444,7 +312,6 @@
   </div>
 </section>
 
-<!-- FOOTER -->
 <footer>
   <strong>Landscaping Index România</strong> &nbsp;|&nbsp;
   Date agregate anonim · Fără autentificare · Open Data &nbsp;|&nbsp;
@@ -453,19 +320,301 @@
 
 <script>
 // ── STATE ───────────────────────────────────────────────────────────────────
-let chartNational = null, chartNat2 = null, chartLocal = null;
-let activeTab = 'national';
-let previewTimer = null;
+let treeData      = null;
+let openNodes     = { cat: null, genus: null, species: null };
+let selectedVar   = null;   // { sp_key, display }
+let selectedRow   = null;   // canonical_key
+let priceChart    = null;
+let previewTimer  = null;
 
-// ── TAB SWITCH ───────────────────────────────────────────────────────────────
-function switchTab(name, el) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  ['national','county','counties'].forEach(t => {
-    document.getElementById('tab-'+t).style.display = t === name ? '' : 'none';
+// ── ICONS PER CATEGORY ───────────────────────────────────────────────────────
+const CAT_ICON = {
+  'Conifere': '🌲', 'Arbori': '🌳', 'Arbusti': '🌿',
+  'Plante_taratoare': '🍃', 'Gazon': '🟩',
+  'Materiale': '🧱', 'Necunoscut': '❓'
+};
+
+// ── LOAD TREE ────────────────────────────────────────────────────────────────
+async function loadTree() {
+  try {
+    const res = await fetch('/api/tree');
+    treeData = await res.json();
+    renderCascade();
+  } catch(e) {
+    document.getElementById('cascade-root').innerHTML =
+      '<div style="color:#c0392b;font-size:12px;padding:8px;">❌ Eroare la încărcare</div>';
+  }
+}
+
+// ── RENDER CASCADE ───────────────────────────────────────────────────────────
+function renderCascade() {
+  const root = document.getElementById('cascade-root');
+  if (!treeData) return;
+  root.innerHTML = '';
+
+  for (const [cat, genera] of Object.entries(treeData)) {
+    const isCatOpen = openNodes.cat === cat;
+    const catEl = mkItem(CAT_ICON[cat] || '🌿', cat, isCatOpen, isCatOpen);
+    catEl.onclick = () => {
+      openNodes = isCatOpen
+        ? { cat: null, genus: null, species: null }
+        : { cat, genus: null, species: null };
+      selectedVar = null;
+      renderCascade();
+      showEmptyState();
+    };
+    root.appendChild(catEl);
+
+    if (!isCatOpen) continue;
+
+    const genusWrap = mkChildren();
+    for (const [genus, species] of Object.entries(genera)) {
+      const isGenusOpen = openNodes.genus === genus;
+      const genusEl = mkItem('•', genus, isGenusOpen, isGenusOpen);
+      genusEl.onclick = (e) => {
+        e.stopPropagation();
+        openNodes = isGenusOpen
+          ? { cat, genus: null, species: null }
+          : { cat, genus, species: null };
+        selectedVar = null;
+        renderCascade();
+        showEmptyState();
+      };
+      genusWrap.appendChild(genusEl);
+
+      if (!isGenusOpen) continue;
+
+      const speciesWrap = mkChildren();
+      for (const [sp, varieties] of Object.entries(species)) {
+        const isSpOpen = openNodes.species === sp;
+        const spEl = mkItem('◦', sp, isSpOpen, isSpOpen);
+        spEl.onclick = (e) => {
+          e.stopPropagation();
+          openNodes = isSpOpen
+            ? { cat, genus, species: null }
+            : { cat, genus, species: sp };
+          selectedVar = null;
+          renderCascade();
+          showEmptyState();
+        };
+        speciesWrap.appendChild(spEl);
+
+        if (!isSpOpen) continue;
+
+        const varWrap = mkChildren();
+        for (const [varName, items] of Object.entries(varieties)) {
+          const sp_key = items[0]?.sp_key || '';
+          const totalPrices = items.reduce((s, i) => s + (i.price_count || 0), 0);
+          const isSelected = selectedVar?.sp_key === sp_key && selectedVar?.var === varName;
+
+          const varEl = mkItem('―', varName, false, isSelected);
+          if (totalPrices > 0) {
+            const countBadge = document.createElement('span');
+            countBadge.className = 'ci-count';
+            countBadge.textContent = totalPrices;
+            varEl.appendChild(countBadge);
+          }
+          varEl.onclick = (e) => {
+            e.stopPropagation();
+            selectedVar = { sp_key, var: varName, cat, genus, species: sp };
+            renderCascade();
+            loadPriceMatrix(sp_key, varName, sp);
+          };
+          varWrap.appendChild(varEl);
+        }
+        speciesWrap.appendChild(varWrap);
+      }
+      genusWrap.appendChild(speciesWrap);
+    }
+    root.appendChild(genusWrap);
+  }
+}
+
+function mkItem(icon, label, isOpen, isActive) {
+  const el = document.createElement('div');
+  el.className = 'cascade-item' + (isOpen ? ' open' : '') + (isActive ? ' active' : '');
+  el.innerHTML = `<span style="opacity:.5;font-size:10px;">${icon}</span>
+    <span style="flex:1;">${label}</span>
+    <span class="ci-arrow">▶</span>`;
+  return el;
+}
+
+function mkChildren() {
+  const el = document.createElement('div');
+  el.className = 'cascade-children';
+  return el;
+}
+
+// ── LOAD PRICE MATRIX ────────────────────────────────────────────────────────
+async function loadPriceMatrix(sp_key, varName, speciesName) {
+  const panel = document.getElementById('price-main-card');
+  panel.innerHTML = `<div style="color:var(--text-sec);padding:20px;">⏳ Se încarcă prețurile...</div>`;
+
+  try {
+    const res = await fetch(`/api/price-matrix?key=${encodeURIComponent(sp_key)}`);
+    const data = await res.json();
+    renderPriceTable(data, varName, speciesName, sp_key);
+  } catch(e) {
+    panel.innerHTML = `<div style="color:#c0392b;padding:20px;">❌ Eroare la încărcarea prețurilor.</div>`;
+  }
+}
+
+// ── RENDER PRICE TABLE ───────────────────────────────────────────────────────
+function renderPriceTable(rows, varName, speciesName, sp_key) {
+  const panel = document.getElementById('price-main-card');
+
+  const hasData = rows.length > 0;
+  const title   = varName === '(specie)' ? speciesName : `${speciesName} ${varName}`;
+
+  let html = `
+    <div class="breadcrumb">
+      ${selectedVar ? `${CAT_ICON[selectedVar.cat]||''} ${selectedVar.cat} → ${selectedVar.genus} → ${selectedVar.species} → <span>${varName}</span>` : ''}
+    </div>
+    <div class="card-title">${title}</div>
+  `;
+
+  if (!hasData) {
+    html += `<div style="color:var(--text-sec);font-size:13px;padding:16px 0;">
+      Niciun preț înregistrat încă pentru această varietate.
+      <a href="#contribuie" style="color:var(--green);font-weight:600;">Contribuie primul! →</a>
+    </div>`;
+    panel.innerHTML = html;
+    return;
+  }
+
+  html += `
+    <table class="price-table" id="matrix-table">
+      <thead>
+        <tr>
+          <th>Dimensiune</th>
+          <th>Preț mediu</th>
+          <th>Min</th>
+          <th>Max</th>
+          <th>Trend săpt.</th>
+          <th>Contribuții</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  rows.forEach(row => {
+    const dim      = row.height_bucket === 'generic' ? '— fără dimensiune' : row.height_bucket;
+    const avg      = row.avg_price     ? row.avg_price.toFixed(2) + ' RON' : '<span class="no-data">—</span>';
+    const minP     = row.min_price     ? row.min_price.toFixed(0) : '—';
+    const maxP     = row.max_price     ? row.max_price.toFixed(0) : '—';
+    const cnt      = row.total_count   || 0;
+    let trendHtml  = '<span class="trend-eq">— stabil</span>';
+    if (row.trend != null) {
+      if (row.trend > 0.5)       trendHtml = `<span class="trend-up">▲ +${row.trend.toFixed(1)} RON</span>`;
+      else if (row.trend < -0.5) trendHtml = `<span class="trend-dn">▼ ${row.trend.toFixed(1)} RON</span>`;
+    }
+
+    html += `<tr onclick="selectDimension('${row.canonical_key}', '${dim}', '${sp_key}', this)">
+      <td class="dim">${dim}</td>
+      <td class="price-val">${avg}</td>
+      <td>${minP}</td>
+      <td>${maxP}</td>
+      <td>${trendHtml}</td>
+      <td>${cnt}</td>
+    </tr>`;
   });
-  activeTab = name;
-  loadChart();
+
+  html += `</tbody></table>
+    <div id="evolution-chart-box" style="display:none;">
+      <div class="chart-box">
+        <div class="chart-box-title" id="evo-title"></div>
+        <div class="chart-box-sub">Evoluție preț mediu săptămânal (contribuții voluntare)</div>
+        <div id="evo-chart"></div>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--text-sec);margin-top:10px;">
+      💡 Click pe un rând pentru a vedea evoluția în timp
+    </p>`;
+
+  panel.innerHTML = html;
+}
+
+// ── SELECT DIMENSION ─────────────────────────────────────────────────────────
+async function selectDimension(canonicalKey, dimLabel, sp_key, rowEl) {
+  // Toggle selected row
+  document.querySelectorAll('#matrix-table tr').forEach(r => r.classList.remove('selected'));
+  if (selectedRow === canonicalKey) {
+    selectedRow = null;
+    document.getElementById('evolution-chart-box').style.display = 'none';
+    if (priceChart) { priceChart.destroy(); priceChart = null; }
+    return;
+  }
+  rowEl.classList.add('selected');
+  selectedRow = canonicalKey;
+
+  const chartBox = document.getElementById('evolution-chart-box');
+  chartBox.style.display = '';
+  document.getElementById('evo-title').textContent = dimLabel;
+  document.getElementById('evo-chart').innerHTML = '<div style="color:var(--text-sec);font-size:12px;padding:8px;">⏳ Se încarcă graficul...</div>';
+
+  try {
+    const res = await fetch(`/api/chart-data?key=${encodeURIComponent(sp_key)}&county=national`);
+    const data = await res.json();
+    renderEvoChart(data.voluntary_national || [], data.online || []);
+  } catch(e) {
+    document.getElementById('evo-chart').innerHTML = '<div style="color:#c0392b;">Eroare la grafic.</div>';
+  }
+}
+
+// ── RENDER EVOLUTION CHART ────────────────────────────────────────────────────
+function renderEvoChart(voluntary, online) {
+  if (priceChart) { priceChart.destroy(); priceChart = null; }
+
+  const labels = [...new Set([
+    ...voluntary.map(d => d.label),
+    ...online.map(d => d.label)
+  ])].sort();
+
+  if (!labels.length) {
+    document.getElementById('evo-chart').innerHTML =
+      '<div style="color:var(--text-sec);padding:16px;font-size:13px;">Insuficiente date pentru grafic.</div>';
+    return;
+  }
+
+  const volMap = Object.fromEntries(voluntary.map(d => [d.label, d]));
+  const onlMap = Object.fromEntries(online.map(d => [d.label, d]));
+
+  const series = [];
+  if (online.length) {
+    series.push({ name: 'Prețuri Online', type: 'area', data: labels.map(l => onlMap[l]?.price ?? null) });
+  }
+  series.push({ name: 'Prețuri Voluntare', type: 'area', data: labels.map(l => volMap[l]?.price ?? null) });
+
+  priceChart = new ApexCharts(document.getElementById('evo-chart'), {
+    series,
+    chart: { type: 'line', height: 220, toolbar: { show: false }, zoom: { enabled: false }, fontFamily: "'Segoe UI', sans-serif", animations: { enabled: true, speed: 400 } },
+    colors: ['#2e6fd4', '#1a5c3a'],
+    stroke: { curve: 'smooth', width: 2.5 },
+    fill: {
+      type: 'gradient',
+      gradient: { type: 'vertical', opacityFrom: 0.25, opacityTo: 0.02 }
+    },
+    markers: { size: 3, hover: { size: 5 } },
+    xaxis: { categories: labels, labels: { rotate: -30, style: { fontSize: '10px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+    yaxis: { labels: { formatter: v => v != null ? Math.round(v) + ' RON' : '', style: { fontSize: '11px' } } },
+    tooltip: { shared: true, intersect: false, y: { formatter: v => v != null ? v.toFixed(2) + ' RON' : '—' } },
+    legend: { position: 'top', fontSize: '12px' },
+    grid: { borderColor: '#f0f0f0', strokeDashArray: 4 },
+    dataLabels: { enabled: false },
+    noData: { text: 'Fără date', style: { color: '#5a6270' } }
+  });
+  priceChart.render();
+}
+
+function showEmptyState() {
+  document.getElementById('price-main-card').innerHTML = `
+    <div class="empty-state">
+      <div class="emoji">🌿</div>
+      <h3>Selectează o varietate din catalog</h3>
+      <p>Navighează până la nivelul de varietate pentru a vedea prețurile</p>
+    </div>`;
+  selectedRow = null;
+  if (priceChart) { priceChart.destroy(); priceChart = null; }
 }
 
 // ── DETECT COUNTY ────────────────────────────────────────────────────────────
@@ -474,224 +623,14 @@ async function detectCounty() {
     const res = await fetch('/api/detect-county');
     const data = await res.json();
     if (data.county) {
-      ['county-select','contrib-county','upload-county'].forEach(id => {
+      ['contrib-county','upload-county'].forEach(id => {
         const sel = document.getElementById(id);
-        if (sel) {
-          for (let opt of sel.options) {
-            if (opt.value === data.county) { sel.value = data.county; break; }
-          }
+        if (sel) for (let opt of sel.options) {
+          if (opt.value === data.county) { sel.value = data.county; break; }
         }
       });
-      loadChart();
     }
   } catch(e) {}
-}
-
-// ── LOAD CHART ────────────────────────────────────────────────────────────────
-async function loadChart() {
-  const key = document.getElementById('item-select').value;
-  const county = document.getElementById('county-select').value || 'national';
-  if (!key) return;
-
-  document.getElementById('county-chart-label').textContent =
-    '📍 ' + (county === 'national' ? 'Național' : county);
-
-  try {
-    const res = await fetch(`/api/chart-data?key=${encodeURIComponent(key)}&county=${encodeURIComponent(county)}`);
-    const data = await res.json();
-
-    if (activeTab === 'national') {
-      renderNationalChart(data.voluntary_national, data.online);
-    } else if (activeTab === 'county') {
-      renderNationalChart(data.voluntary_national, data.online, 'chart-nat2');
-      renderLocalChart(data.voluntary_local || []);
-    } else if (activeTab === 'counties') {
-      renderCountyTable(data.county_stats || [], county);
-    }
-  } catch(e) {
-    console.error('Eroare chart:', e);
-  }
-}
-
-function apexOptions(labels, series, onlMap) {
-  return {
-    series,
-    chart: {
-      type: 'line',
-      height: 300,
-      toolbar: { show: false },
-      zoom: { enabled: false },
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
-      animations: { enabled: true, speed: 500 }
-    },
-    colors: ['#2e6fd4', '#1a5c3a', '#e07b20'],
-    stroke: { curve: 'smooth', width: [2.5, 2.5, 0] },
-    fill: {
-      type: ['gradient', 'gradient', 'solid'],
-      gradient: {
-        type: 'vertical',
-        shadeIntensity: 0.5,
-        gradientToColors: ['#2e6fd4', '#1a5c3a'],
-        opacityFrom: [0.3, 0.3],
-        opacityTo: [0.02, 0.02],
-        stops: [0, 100]
-      },
-      opacity: [1, 1, 0.25]
-    },
-    markers: { size: [4, 4, 0], hover: { size: 6 } },
-    xaxis: {
-      categories: labels,
-      labels: {
-        rotate: -30,
-        style: { fontSize: '11px', colors: '#5a6270' }
-      },
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-      tooltip: { enabled: false }
-    },
-    yaxis: [
-      {
-        seriesName: series[0]?.name,
-        title: { text: 'RON', style: { fontSize: '11px', color: '#5a6270', fontWeight: 400 } },
-        labels: {
-          formatter: v => v != null ? Math.round(v).toLocaleString('ro-RO') + ' RON' : '',
-          style: { fontSize: '11px', colors: '#5a6270' }
-        }
-      },
-      series.length > 1 ? {
-        seriesName: series[1]?.name,
-        show: false
-      } : undefined,
-      series.length > 2 ? {
-        opposite: true,
-        seriesName: series[series.length-1]?.name,
-        title: { text: 'Contribuții', style: { fontSize: '11px', color: '#5a6270', fontWeight: 400 } },
-        labels: {
-          formatter: v => v != null ? Math.round(v) : '',
-          style: { fontSize: '11px', colors: '#5a6270' }
-        },
-        min: 0
-      } : undefined
-    ].filter(Boolean),
-    tooltip: {
-      shared: true,
-      intersect: false,
-      theme: 'light',
-      style: { fontSize: '12px' },
-      y: {
-        formatter: (val, { seriesIndex, w }) => {
-          if (!w.config.series[seriesIndex]) return val;
-          const name = w.config.series[seriesIndex].name;
-          if (name === 'Contribuții') return val + ' contribuții';
-          return val != null ? val.toFixed(2) + ' RON' : '—';
-        }
-      }
-    },
-    legend: {
-      position: 'top',
-      horizontalAlign: 'left',
-      fontSize: '12px',
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
-      markers: { radius: 3, width: 10, height: 10 },
-      itemMargin: { horizontal: 12 }
-    },
-    grid: {
-      borderColor: '#f0f0f0',
-      strokeDashArray: 4,
-      xaxis: { lines: { show: false } },
-      padding: { top: 0, right: 10, bottom: 0, left: 10 }
-    },
-    dataLabels: { enabled: false },
-    noData: {
-      text: 'Selectează un produs mai sus',
-      style: { color: '#5a6270', fontSize: '13px' }
-    }
-  };
-}
-
-function renderNationalChart(voluntary, online, divId = 'chart-national') {
-  if (divId === 'chart-national' && chartNational) { chartNational.destroy(); chartNational = null; }
-  if (divId === 'chart-nat2'    && chartNat2)    { chartNat2.destroy();    chartNat2    = null; }
-
-  const labels = [...new Set([
-    ...voluntary.map(d => d.label),
-    ...online.map(d => d.label)
-  ])].sort();
-
-  const volMap = Object.fromEntries(voluntary.map(d => [d.label, d]));
-  const onlMap = Object.fromEntries(online.map(d => [d.label, d]));
-
-  const series = [];
-  if (online.length) {
-    series.push({
-      name: 'Prețuri Online (medie)',
-      type: 'area',
-      data: labels.map(l => onlMap[l]?.price ?? null)
-    });
-  }
-  series.push({
-    name: 'Prețuri Voluntare (medie)',
-    type: 'area',
-    data: labels.map(l => volMap[l]?.price ?? null)
-  });
-  series.push({
-    name: 'Contribuții',
-    type: 'bar',
-    data: labels.map(l => volMap[l]?.count ?? 0)
-  });
-
-  const chart = new ApexCharts(document.getElementById(divId), apexOptions(labels, series, onlMap));
-  chart.render();
-
-  if (divId === 'chart-national') chartNational = chart;
-  else chartNat2 = chart;
-}
-
-function renderLocalChart(voluntary) {
-  if (chartLocal) { chartLocal.destroy(); chartLocal = null; }
-  const labels = voluntary.map(d => d.label);
-  const series = [
-    { name: 'Prețuri Voluntare Județ', type: 'area', data: voluntary.map(d => d.price) },
-    { name: 'Contribuții', type: 'bar',  data: voluntary.map(d => d.count) }
-  ];
-  chartLocal = new ApexCharts(document.getElementById('chart-local'), apexOptions(labels, series, {}));
-  chartLocal.render();
-}
-
-function renderCountyTable(stats, selectedCounty) {
-  const tbody = document.getElementById('county-tbody');
-  if (!stats.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-sec);padding:20px;">Nicio contribuție pe județe pentru acest produs.</td></tr>';
-    return;
-  }
-  const maxCnt = Math.max(...stats.map(s => s.cnt));
-  tbody.innerHTML = stats.map((s, i) => `
-    <tr class="${s.county === selectedCounty ? 'selected' : ''}">
-      <td>${i+1}</td>
-      <td><strong>${s.county}</strong></td>
-      <td>${s.cnt}</td>
-      <td><div class="bar-mini" style="width:${Math.round(s.cnt/maxCnt*100)}%"></div></td>
-      <td>${s.avg_price ? s.avg_price.toFixed(2)+' RON' : '—'}</td>
-    </tr>
-  `).join('');
-}
-
-// ── CATALOG FILTER ───────────────────────────────────────────────────────────
-function filterCatalog() {
-  const q   = document.getElementById('catalog-search').value.toLowerCase();
-  const cat = document.getElementById('catalog-cat-filter').value;
-  document.querySelectorAll('#catalog-table tbody tr').forEach(row => {
-    const name    = row.dataset.name || '';
-    const rowCat  = row.dataset.cat  || '';
-    const matches = (!q || name.includes(q)) && (!cat || rowCat === cat);
-    row.style.display = matches ? '' : 'none';
-  });
-}
-
-function selectItem(level1Key, name) {
-  document.getElementById('item-select').value = level1Key;
-  document.getElementById('grafic').scrollIntoView({ behavior: 'smooth' });
-  loadChart();
 }
 
 // ── CONTRIBUTE ───────────────────────────────────────────────────────────────
@@ -708,18 +647,15 @@ async function fetchPreview() {
     box.textContent = 'Introdu o descriere pentru a vedea ce identifică agentul...';
     return;
   }
-  box.className = 'preview-box';
-  box.textContent = '⏳ Identificare...';
+  box.className = 'preview-box'; box.textContent = '⏳ Identificare...';
   try {
     const res = await fetch('/api/parse-preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
     });
     const data = await res.json();
     if (data.error) {
-      box.className = 'preview-box error';
-      box.textContent = '❌ ' + data.error;
+      box.className = 'preview-box error'; box.textContent = '❌ ' + data.error;
       document.getElementById('contrib-level1').value = '';
     } else {
       box.className = 'preview-box identified';
@@ -729,8 +665,7 @@ async function fetchPreview() {
       document.getElementById('contrib-level1').value = data.level1_key;
     }
   } catch(e) {
-    box.className = 'preview-box error';
-    box.textContent = 'Eroare de conexiune.';
+    box.className = 'preview-box error'; box.textContent = 'Eroare de conexiune.';
   }
 }
 
@@ -739,16 +674,13 @@ async function submitContrib() {
   const price  = document.getElementById('contrib-price').value;
   const county = document.getElementById('contrib-county').value;
   const result = document.getElementById('contrib-result');
-
   if (!text || !price) {
-    result.innerHTML = '<div class="alert alert-error">Completează produsul și prețul.</div>';
-    return;
+    result.innerHTML = '<div class="alert alert-error">Completează produsul și prețul.</div>'; return;
   }
   result.innerHTML = '<div style="color:var(--text-sec);">⏳ Se trimite...</div>';
   try {
     const res = await fetch('/api/contribute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, price: parseFloat(price), county })
     });
     const data = await res.json();
@@ -758,9 +690,9 @@ async function submitContrib() {
       document.getElementById('contrib-price').value = '';
       document.getElementById('contrib-preview').className = 'preview-box';
       document.getElementById('contrib-preview').textContent = 'Introdu o descriere...';
-      // Refresh contor hero
       const tot = document.getElementById('hero-total');
       if (tot) tot.textContent = parseInt(tot.textContent) + 1;
+      loadTree(); // refresh tree cu noul count
     } else {
       result.innerHTML = `<div class="alert alert-error">⚠️ ${data.message}</div>`;
     }
@@ -782,30 +714,18 @@ async function handleFile(file) {
   const county  = document.getElementById('upload-county').value;
   const results = document.getElementById('upload-results');
   results.innerHTML = '<div style="color:var(--text-sec);">⏳ Se procesează fișierul...</div>';
-
   const fd = new FormData();
   fd.append('file', file);
   if (county) fd.append('county', county);
-
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const res  = await fetch('/api/upload', { method: 'POST', body: fd });
     const data = await res.json();
-    if (data.error) {
-      results.innerHTML = `<div class="err">❌ ${data.error}</div>`;
-      return;
-    }
+    if (data.error) { results.innerHTML = `<div class="err">❌ ${data.error}</div>`; return; }
     let html = `<div class="ok">✅ ${data.ok} produse indexate cu succes</div>`;
-    if (data.skipped) html += `<div class="warn">⚠️ ${data.skipped} rânduri sărite (date insuficiente sau regulă anti-manipulare)</div>`;
-    if (data.warnings?.length) {
-      html += '<div class="warn" style="margin-top:6px;"><strong>Avertismente:</strong><ul style="margin:4px 0 0 16px;">';
-      data.warnings.slice(0, 10).forEach(w => { html += `<li>${w}</li>`; });
-      if (data.warnings.length > 10) html += `<li>... și alte ${data.warnings.length - 10}</li>`;
-      html += '</ul></div>';
-    }
-    if (data.errors?.length) {
-      html += '<div class="err"><strong>Erori:</strong> ' + data.errors.join('; ') + '</div>';
-    }
+    if (data.skipped) html += `<div class="warn">⚠️ ${data.skipped} rânduri sărite</div>`;
+    if (data.errors?.length) html += '<div class="err"><strong>Erori:</strong> ' + data.errors.join('; ') + '</div>';
     results.innerHTML = html;
+    loadTree();
   } catch(e) {
     results.innerHTML = '<div class="err">Eroare de conexiune.</div>';
   }
@@ -814,6 +734,7 @@ async function handleFile(file) {
 // ── INIT ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   detectCounty();
+  loadTree();
 });
 </script>
 </body>
