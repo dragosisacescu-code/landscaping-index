@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Landscaping Index România</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/apexcharts/3.45.2/apexcharts.min.js"></script>
   <style>
     :root {
       --bg:       #f4f5f7;
@@ -283,14 +283,8 @@
 
     <!-- Tab: National -->
     <div id="tab-national">
-      <div class="legend" style="margin-bottom:12px;">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--blue-lt)"></div> Prețuri Online (medie)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--green-lt)"></div> Prețuri Voluntare (medie)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#e8eaed;border:1px solid var(--border)"></div> Bandă Min–Max Online</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--orange);opacity:.5"></div> Volum Contribuții</div>
-      </div>
       <div class="chart-wrap">
-        <canvas id="chart-national"></canvas>
+        <div id="chart-national"></div>
       </div>
     </div>
 
@@ -299,11 +293,11 @@
       <div class="charts-row">
         <div>
           <div class="chart-label">🌍 Național</div>
-          <div class="chart-wrap"><canvas id="chart-nat2"></canvas></div>
+          <div class="chart-wrap"><div id="chart-nat2"></div></div>
         </div>
         <div>
           <div class="chart-label" id="county-chart-label">📍 Județ Selectat</div>
-          <div class="chart-wrap"><canvas id="chart-local"></canvas></div>
+          <div class="chart-wrap"><div id="chart-local"></div></div>
         </div>
       </div>
     </div>
@@ -519,10 +513,105 @@ async function loadChart() {
   }
 }
 
-function renderNationalChart(voluntary, online, canvasId = 'chart-national') {
-  const ctx = document.getElementById(canvasId).getContext('2d');
-  if (canvasId === 'chart-national' && chartNational) chartNational.destroy();
-  if (canvasId === 'chart-nat2' && chartNat2) chartNat2.destroy();
+function apexOptions(labels, series, onlMap) {
+  return {
+    series,
+    chart: {
+      type: 'line',
+      height: 300,
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      animations: { enabled: true, speed: 500 }
+    },
+    colors: ['#2e6fd4', '#1a5c3a', '#e07b20'],
+    stroke: { curve: 'smooth', width: [2.5, 2.5, 0] },
+    fill: {
+      type: ['gradient', 'gradient', 'solid'],
+      gradient: {
+        type: 'vertical',
+        shadeIntensity: 0.5,
+        gradientToColors: ['#2e6fd4', '#1a5c3a'],
+        opacityFrom: [0.3, 0.3],
+        opacityTo: [0.02, 0.02],
+        stops: [0, 100]
+      },
+      opacity: [1, 1, 0.25]
+    },
+    markers: { size: [4, 4, 0], hover: { size: 6 } },
+    xaxis: {
+      categories: labels,
+      labels: {
+        rotate: -30,
+        style: { fontSize: '11px', colors: '#5a6270' }
+      },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      tooltip: { enabled: false }
+    },
+    yaxis: [
+      {
+        seriesName: series[0]?.name,
+        title: { text: 'RON', style: { fontSize: '11px', color: '#5a6270', fontWeight: 400 } },
+        labels: {
+          formatter: v => v != null ? Math.round(v).toLocaleString('ro-RO') + ' RON' : '',
+          style: { fontSize: '11px', colors: '#5a6270' }
+        }
+      },
+      series.length > 1 ? {
+        seriesName: series[1]?.name,
+        show: false
+      } : undefined,
+      series.length > 2 ? {
+        opposite: true,
+        seriesName: series[series.length-1]?.name,
+        title: { text: 'Contribuții', style: { fontSize: '11px', color: '#5a6270', fontWeight: 400 } },
+        labels: {
+          formatter: v => v != null ? Math.round(v) : '',
+          style: { fontSize: '11px', colors: '#5a6270' }
+        },
+        min: 0
+      } : undefined
+    ].filter(Boolean),
+    tooltip: {
+      shared: true,
+      intersect: false,
+      theme: 'light',
+      style: { fontSize: '12px' },
+      y: {
+        formatter: (val, { seriesIndex, w }) => {
+          if (!w.config.series[seriesIndex]) return val;
+          const name = w.config.series[seriesIndex].name;
+          if (name === 'Contribuții') return val + ' contribuții';
+          return val != null ? val.toFixed(2) + ' RON' : '—';
+        }
+      }
+    },
+    legend: {
+      position: 'top',
+      horizontalAlign: 'left',
+      fontSize: '12px',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      markers: { radius: 3, width: 10, height: 10 },
+      itemMargin: { horizontal: 12 }
+    },
+    grid: {
+      borderColor: '#f0f0f0',
+      strokeDashArray: 4,
+      xaxis: { lines: { show: false } },
+      padding: { top: 0, right: 10, bottom: 0, left: 10 }
+    },
+    dataLabels: { enabled: false },
+    noData: {
+      text: 'Selectează un produs mai sus',
+      style: { color: '#5a6270', fontSize: '13px' }
+    }
+  };
+}
+
+function renderNationalChart(voluntary, online, divId = 'chart-national') {
+  if (divId === 'chart-national' && chartNational) { chartNational.destroy(); chartNational = null; }
+  if (divId === 'chart-nat2'    && chartNat2)    { chartNat2.destroy();    chartNat2    = null; }
 
   const labels = [...new Set([
     ...voluntary.map(d => d.label),
@@ -532,112 +621,41 @@ function renderNationalChart(voluntary, online, canvasId = 'chart-national') {
   const volMap = Object.fromEntries(voluntary.map(d => [d.label, d]));
   const onlMap = Object.fromEntries(online.map(d => [d.label, d]));
 
-  const chart = new Chart(ctx, {
-    data: {
-      labels,
-      datasets: [
-        {
-          type: 'line',
-          label: 'Online (medie)',
-          data: labels.map(l => onlMap[l]?.price ?? null),
-          borderColor: '#2e6fd4',
-          backgroundColor: 'rgba(46,111,212,.08)',
-          fill: false,
-          tension: 0.3,
-          pointRadius: 3,
-          yAxisID: 'y',
-          spanGaps: true,
-        },
-        {
-          type: 'line',
-          label: 'Voluntar (medie)',
-          data: labels.map(l => volMap[l]?.price ?? null),
-          borderColor: '#2d8a5a',
-          backgroundColor: 'rgba(45,138,90,.08)',
-          fill: false,
-          tension: 0.3,
-          pointRadius: 3,
-          yAxisID: 'y',
-          spanGaps: true,
-        },
-        {
-          type: 'bar',
-          label: 'Contribuții Voluntare',
-          data: labels.map(l => volMap[l]?.count ?? 0),
-          backgroundColor: 'rgba(224,123,32,.35)',
-          yAxisID: 'y2',
-          order: 10,
-        },
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'top', labels: { font: { size: 11 } } },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              if (ctx.dataset.yAxisID === 'y2') return `Contribuții: ${ctx.parsed.y}`;
-              const l = ctx.label;
-              const src = onlMap[l]?.sources;
-              let str = `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)} RON`;
-              if (src && ctx.datasetIndex === 0) {
-                const minSrc = src.reduce((a,b) => a.min<b.min?a:b, src[0]);
-                const maxSrc = src.reduce((a,b) => a.max>b.max?a:b, src[0]);
-                str += ` (min ${minSrc.min} @ ${minSrc.name}, max ${maxSrc.max} @ ${maxSrc.name})`;
-              }
-              return str;
-            }
-          }
-        }
-      },
-      scales: {
-        y:  { position: 'left',  title: { display: true, text: 'RON', font: { size: 11 } } },
-        y2: { position: 'right', title: { display: true, text: 'Contribuții', font: { size: 11 } }, grid: { drawOnChartArea: false } },
-      }
-    }
+  const series = [];
+  if (online.length) {
+    series.push({
+      name: 'Prețuri Online (medie)',
+      type: 'area',
+      data: labels.map(l => onlMap[l]?.price ?? null)
+    });
+  }
+  series.push({
+    name: 'Prețuri Voluntare (medie)',
+    type: 'area',
+    data: labels.map(l => volMap[l]?.price ?? null)
+  });
+  series.push({
+    name: 'Contribuții',
+    type: 'bar',
+    data: labels.map(l => volMap[l]?.count ?? 0)
   });
 
-  if (canvasId === 'chart-national') chartNational = chart;
+  const chart = new ApexCharts(document.getElementById(divId), apexOptions(labels, series, onlMap));
+  chart.render();
+
+  if (divId === 'chart-national') chartNational = chart;
   else chartNat2 = chart;
 }
 
 function renderLocalChart(voluntary) {
-  const ctx = document.getElementById('chart-local').getContext('2d');
-  if (chartLocal) chartLocal.destroy();
+  if (chartLocal) { chartLocal.destroy(); chartLocal = null; }
   const labels = voluntary.map(d => d.label);
-  chartLocal = new Chart(ctx, {
-    data: {
-      labels,
-      datasets: [
-        {
-          type: 'line',
-          label: 'Voluntar Local',
-          data: voluntary.map(d => d.price),
-          borderColor: '#2d8a5a',
-          backgroundColor: 'rgba(45,138,90,.1)',
-          fill: true, tension: 0.3, pointRadius: 3,
-          yAxisID: 'y',
-        },
-        {
-          type: 'bar',
-          label: 'Contribuții',
-          data: voluntary.map(d => d.count),
-          backgroundColor: 'rgba(45,138,90,.3)',
-          yAxisID: 'y2', order: 10,
-        }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
-      scales: {
-        y:  { position: 'left',  title: { display: true, text: 'RON', font: { size: 11 } } },
-        y2: { position: 'right', title: { display: true, text: 'Contribuții', font: { size: 11 } }, grid: { drawOnChartArea: false } },
-      }
-    }
-  });
+  const series = [
+    { name: 'Prețuri Voluntare Județ', type: 'area', data: voluntary.map(d => d.price) },
+    { name: 'Contribuții', type: 'bar',  data: voluntary.map(d => d.count) }
+  ];
+  chartLocal = new ApexCharts(document.getElementById('chart-local'), apexOptions(labels, series, {}));
+  chartLocal.render();
 }
 
 function renderCountyTable(stats, selectedCounty) {
